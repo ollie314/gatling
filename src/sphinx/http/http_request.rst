@@ -127,7 +127,9 @@ Here are some examples:
 Signature Calculator
 ====================
 
-You might want to generate some `HMAC <http://en.wikipedia.org/wiki/Hash-based_message_authentication_code>`_ header based on other request information: url, headers and/or body.
+You might want to edit the HTTP requests before they're being sent over the wire, based on other request information: url, headers and/or body.
+For example, you might want to generate some `HMAC <http://en.wikipedia.org/wiki/Hash-based_message_authentication_code>`_ header.
+
 This can only happen after Gatling has resolved the request, e.g. computed the body based on a template.
 
 Gatling exposes AsyncHttpClient's ``SignatureCalculator`` API::
@@ -250,8 +252,8 @@ You might also want to do the exact opposite, typically on a given resource whil
 
 .. _http-parameters:
 
-Parameters
-==========
+Form Parameters
+===============
 
 Requests can have parameters defined in their body.
 This is typically used for form submission, where all the values are stored as POST parameters in the body of the request.
@@ -276,6 +278,17 @@ If you'd like to pass multiple values for your parameter, but all at once, you c
 
 The method ``formParam`` can also take directly an `HttpParam` instance, if you want to build it by hand.
 
+* ``form(seq: Expression[Map[String, Seq[String]])``:
+
+.. includecode:: code/HttpRequest.scala#form
+
+Typically used after capturing a whole form with a ``form`` check.
+
+You can override the form field values with the ``formParam`` and the likes.
+
+.. note:: Gatling will automatically set the `Content-Type` header for you if you didn't specify one.
+          It will use `application/x-www-form-urlencoded` except if there's also some body parts, in which case it will set `multipart/form-data`.
+
 .. _http-multipart-form:
 
 Multipart Form
@@ -290,6 +303,8 @@ The uploaded file must be located in ``user-files/bodies``. The ``Content-Type``
 One can call ``formUpload()`` multiple times in order to upload multiple files.
 
 .. includecode:: code/HttpRequest.scala#formUpload
+
+.. note:: Gatling will automatically set the `Content-Type` header to `multipart/form-data` if you didn't specify one.
 
 .. note:: The MIME Type of the uploaded file defaults to ``application/octet-stream`` and the character set defaults to the one configured in ``gatling.conf`` (``UTF-8`` by default).
           Don't forget to override them when needed.
@@ -400,10 +415,10 @@ Once bootstrapped, BodyPart has the following methods for setting additional opt
 * ``transferEncoding(transferEncoding: String)``
 * ``header(name: String, value: Expression[String])``, let you define additional part headers
 
-.. _http-request-processor:
+.. _http-request-body-processor:
 
-Request processor
-=================
+Request Body Processor
+======================
 
 You might want to process the request body before it's being sent to the wire.
 
@@ -414,10 +429,10 @@ Gatling ships two built-ins:
 * ``gzipBody``: compress the request body with GZIP
 * ``streamBody``: turn the body into a stream
 
-.. _http-response-processor:
+.. _http-response-transformer:
 
-Response processors
-===================
+Response Transformers
+=====================
 
 Similarly, one might want to process the response before it's passed to the checks pipeline.
 

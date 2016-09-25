@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,23 @@ import scala.util.Properties._
 
 private[compiler] object ConfigUtils {
 
+  // WARN copied from io.gatling.commons.util.PathHelper
+  implicit def string2path(pathString: String): Path = Paths.get(pathString)
+
+  implicit class RichPath(val path: Path) extends AnyVal {
+
+    def /(pathString: String) = path.resolve(pathString)
+
+    def /(other: Path) = path.resolve(other)
+
+    def exists = Files.exists(path)
+  }
+
+  // WARN copied from io.gatling.core.config.GatlingFiles
   val GatlingHome = Paths.get(envOrElse("GATLING_HOME", propOrElse("GATLING_HOME", ".")))
 
-  def resolvePath(path: Path): Path = {
-    if (path.isAbsolute || Files.exists(path)) path else GatlingHome.resolve(path)
-  }
+  def resolvePath(path: Path): Path =
+    (if (path.isAbsolute || path.exists) path else GatlingHome / path).normalize().toAbsolutePath
 
   def string2option(string: String) = string.trim match {
     case "" => None

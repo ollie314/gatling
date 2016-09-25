@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,19 @@
  */
 package io.gatling.core.action.builder
 
-import io.gatling.core.action.{ GroupEnd, GroupStart }
+import io.gatling.core.action.{ Action, GroupEnd, GroupStart }
 import io.gatling.core.session.Expression
 import io.gatling.core.structure.ScenarioContext
-
-import akka.actor.ActorRef
 
 object GroupBuilder {
 
   def start(groupName: Expression[String]) = new ActionBuilder {
-    def build(ctx: ScenarioContext, next: ActorRef) =
-      ctx.system.actorOf(GroupStart.props(groupName, ctx.coreComponents.statsEngine, next), actorName("groupStart"))
+    override def build(ctx: ScenarioContext, next: Action): Action =
+      new GroupStart(groupName, ctx.coreComponents.statsEngine, next)
   }
 
   val End = new ActionBuilder {
-    def build(ctx: ScenarioContext, next: ActorRef) =
-      ctx.system.actorOf(GroupEnd.props(ctx.coreComponents.statsEngine, next), actorName("groupEnd"))
+    override def build(ctx: ScenarioContext, next: Action): Action =
+      new GroupEnd(ctx.coreComponents.statsEngine, next)
   }
 }

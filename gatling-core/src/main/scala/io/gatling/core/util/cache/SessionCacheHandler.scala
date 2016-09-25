@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,33 @@
  */
 package io.gatling.core.util.cache
 
+import io.gatling.commons.util.TypeCaster
+import io.gatling.commons.validation._
 import io.gatling.core.session.Session
 
+object SessionCacheHandler {
+
+  private[this] val CacheTypeCaster = new TypeCaster[Cache[_, _]] {
+    @throws[ClassCastException]
+    override def cast(value: Any): Cache[_, _] =
+      value match {
+        case v: Cache[_, _] => v
+        case _              => throw new ClassCastException(cceMessage(value, classOf[Cache[_, _]]))
+      }
+
+    override def validate(value: Any): Validation[Cache[_, _]] =
+      value match {
+        case v: Cache[_, _] => v.success
+        case _              => cceMessage(value, classOf[Cache[_, _]]).failure
+      }
+  }
+
+  implicit def cacheTypeCaster[K, V]: TypeCaster[Cache[K, V]] = CacheTypeCaster.asInstanceOf[TypeCaster[Cache[K, V]]]
+}
+
 class SessionCacheHandler[K, V](cacheName: String, maxCapacity: Int) {
+
+  import SessionCacheHandler._
 
   def getCache(session: Session): Option[Cache[K, V]] =
     session(cacheName).asOption[Cache[K, V]]
@@ -25,7 +49,7 @@ class SessionCacheHandler[K, V](cacheName: String, maxCapacity: Int) {
   def getOrCreateCache(session: Session): Cache[K, V] =
     getCache(session) match {
       case Some(cache) => cache
-      case _           => Cache[K, V](maxCapacity)
+      case _           => Cache.newImmutableCache[K, V](maxCapacity)
     }
 
   def addEntry(session: Session, key: K, value: V): Session = {
@@ -36,7 +60,7 @@ class SessionCacheHandler[K, V](cacheName: String, maxCapacity: Int) {
     }
   }
 
-  def getEntry(session: Session, key: K): Option[V] =
+  def getEntry(session: Session, key: => K): Option[V] =
     getCache(session).flatMap(_.get(key))
 
   def removeEntry(session: Session, key: K): Session =

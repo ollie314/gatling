@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,17 @@
  */
 package io.gatling.core.action
 
-import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.message.KO
-
-import akka.actor.{ Props, ActorRef }
+import io.gatling.commons.stats.KO
+import io.gatling.commons.util.TimeHelper.nowMillis
 import io.gatling.core.session.{ GroupBlock, Session }
-import io.gatling.core.util.TimeHelper.nowMillis
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.util.NameGen
 
-object ExitHereIfFailed {
-  def props(exit: ActorRef, statsEngine: StatsEngine, next: ActorRef) =
-    Props(new ExitHereIfFailed(exit, statsEngine, next))
-}
+class ExitHereIfFailed(exit: Action, statsEngine: StatsEngine, val next: Action) extends Action with ChainableAction with NameGen {
 
-class ExitHereIfFailed(exit: ActorRef, statsEngine: StatsEngine, val next: ActorRef) extends Chainable {
+  override val name: String = genName("exitHereIfFailed")
 
-  def execute(session: Session): Unit = {
+  override def execute(session: Session): Unit = {
 
     val nextStep = session.status match {
       case KO =>
@@ -45,6 +41,6 @@ class ExitHereIfFailed(exit: ActorRef, statsEngine: StatsEngine, val next: Actor
       case _ => next
     }
 
-    nextStep ! session
+    nextStep.execute(session)
   }
 }

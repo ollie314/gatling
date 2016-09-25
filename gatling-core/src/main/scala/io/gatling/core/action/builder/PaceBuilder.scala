@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,9 @@ package io.gatling.core.action.builder
 
 import scala.concurrent.duration.Duration
 
-import io.gatling.core.action.Pace
+import io.gatling.core.action.{ Action, Pace }
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.session.Expression
-
-import akka.actor.ActorRef
 
 /**
  * Builder for the Pace action
@@ -30,6 +28,6 @@ import akka.actor.ActorRef
  */
 class PaceBuilder(interval: Expression[Duration], counter: String) extends ActionBuilder {
 
-  def build(ctx: ScenarioContext, next: ActorRef) =
-    ctx.system.actorOf(Pace.props(interval, counter, ctx.coreComponents.statsEngine, next), actorName("pace"))
+  override def build(ctx: ScenarioContext, next: Action): Action =
+    new Pace(interval, counter, ctx.system, ctx.coreComponents.statsEngine, next)
 }

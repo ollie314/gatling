@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 package io.gatling.core.action
 
 import io.gatling.AkkaSpec
+import io.gatling.commons.validation._
 import io.gatling.core.session._
-import io.gatling.core.stats.DefaultStatsEngine
-import io.gatling.core.validation._
+import io.gatling.core.stats.DataWritersStatsEngine
 
 import akka.testkit._
 
@@ -26,12 +26,13 @@ class FeedSpec extends AkkaSpec {
 
   "Feed" should "send a FeedMessage to the SingletonFeed actor" in {
     val dataWriterProbe = TestProbe()
-    val statsEngine = new DefaultStatsEngine(system, List(dataWriterProbe.ref))
+    val statsEngine = new DataWritersStatsEngine(system, List(dataWriterProbe.ref))
     val singleton = TestProbe()
     val controller = TestProbe()
     val number: Expression[Int] = session => 1.success
+    val next = new ActorDelegatingAction("next", self)
 
-    val feed = TestActorRef(Feed.props(singleton.ref, controller.ref, number, statsEngine, self))
+    val feed = new Feed(singleton.ref, number, controller.ref, statsEngine, next)
 
     val session = Session("scenario", 0)
 
@@ -40,6 +41,6 @@ class FeedSpec extends AkkaSpec {
     val feedMessage = singleton.expectMsgType[FeedMessage]
     feedMessage.session shouldBe session
     feedMessage.controller shouldBe controller.ref
-    feedMessage.next shouldBe self
+    feedMessage.next shouldBe next
   }
 }

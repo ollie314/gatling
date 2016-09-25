@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,11 @@ import java.io.{ InputStream, InputStreamReader }
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets._
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import io.gatling.commons.util.FastByteArrayInputStream
+import io.gatling.commons.util.NonStandardCharsets.UTF_32
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.FastByteArrayInputStream
-import io.gatling.core.util.NonStandardCharsets.UTF_32
+
+import com.fasterxml.jackson.databind.ObjectMapper
 
 object Jackson {
 
@@ -34,7 +35,7 @@ class Jackson(objectMapper: ObjectMapper, defaultCharset: Charset) extends JsonP
 
   val JsonSupportedEncodings = Vector(UTF_8, UTF_16, UTF_32)
 
-  def parse(bytes: Array[Byte], charset: Charset) =
+  def parse(bytes: Array[Byte], charset: Charset): Object =
     if (JsonSupportedEncodings.contains(charset)) {
       objectMapper.readValue(bytes, classOf[Object])
     } else {
@@ -42,9 +43,9 @@ class Jackson(objectMapper: ObjectMapper, defaultCharset: Charset) extends JsonP
       objectMapper.readValue(reader, classOf[Object])
     }
 
-  def parse(string: String) = objectMapper.readValue(string, classOf[Object])
+  def parse(string: String): Object = objectMapper.readValue(string, classOf[Object])
 
-  def parse(stream: InputStream, charset: Charset = defaultCharset) =
+  def parse(stream: InputStream, charset: Charset = defaultCharset): Object =
     if (JsonSupportedEncodings.contains(charset)) {
       objectMapper.readValue(stream, classOf[Object])
     } else {

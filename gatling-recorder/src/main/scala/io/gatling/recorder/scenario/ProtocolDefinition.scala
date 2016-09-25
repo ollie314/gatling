@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,8 @@ private[scenario] object ProtocolDefinition {
     HeaderNames.Connection -> "connectionHeader",
     HeaderNames.ContentType -> "contentTypeHeader",
     HeaderNames.DNT -> "doNotTrackHeader",
-    HeaderNames.UserAgent -> "userAgentHeader")
+    HeaderNames.UserAgent -> "userAgentHeader"
+  )
 }
 
 private[scenario] case class ProtocolDefinition(baseUrl: String, headers: Map[String, String])

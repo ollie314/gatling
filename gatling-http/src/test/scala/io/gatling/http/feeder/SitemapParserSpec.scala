@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,13 @@ package io.gatling.http.feeder
 
 import java.io.{ File, InputStream, IOException }
 
-import io.gatling.core.util.{ FileResource, Resource }
+import io.gatling.BaseSpec
+import io.gatling.commons.util.Io._
+import io.gatling.core.util.{ Resource, FileResource }
+import io.gatling.core.feeder.Record
 
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-
-import io.gatling.BaseSpec
-import io.gatling.core.feeder.Record
-import io.gatling.core.util.Io._
 
 class SitemapParserSpec extends BaseSpec {
 
@@ -72,25 +71,30 @@ class SitemapParserSpec extends BaseSpec {
       "loc" -> "http://www.example.com/",
       "lastmod" -> "2005-01-01",
       "changefreq" -> "monthly",
-      "priority" -> "0.8")
+      "priority" -> "0.8"
+    )
 
     records(1) shouldBe Map(
       "loc" -> "http://www.example.com/catalog?item=12&amp;desc=vacation_hawaii",
-      "changefreq" -> "weekly")
+      "changefreq" -> "weekly"
+    )
 
     records(2) shouldBe Map(
       "loc" -> "http://www.example.com/catalog?item=73&amp;desc=vacation_new_zealand",
       "lastmod" -> "2004-12-23",
-      "changefreq" -> "weekly")
+      "changefreq" -> "weekly"
+    )
 
     records(3) shouldBe Map(
       "loc" -> "http://www.example.com/catalog?item=74&amp;desc=vacation_newfoundland",
       "lastmod" -> "2004-12-23T18:00:15+00:00",
-      "priority" -> "0.3")
+      "priority" -> "0.3"
+    )
 
     records(4) shouldBe Map(
       "loc" -> "http://www.example.com/catalog?item=83&amp;desc=vacation_usa",
-      "lastmod" -> "2004-11-23")
+      "lastmod" -> "2004-11-23"
+    )
   }
 
 }

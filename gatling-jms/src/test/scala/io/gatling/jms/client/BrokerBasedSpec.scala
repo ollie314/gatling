@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,18 +22,32 @@ import org.apache.activemq.broker.{ BrokerFactory, BrokerService }
 import org.apache.activemq.jndi.ActiveMQInitialContextFactory
 
 import io.gatling.AkkaSpec
+import io.gatling.jms.protocol.JmsProtocol
+
+import javax.jms.DeliveryMode
 
 trait BrokerBasedSpec extends AkkaSpec {
 
-  override def beforeAll() = startBroker()
+  override def beforeAll() = {
+    sys.props += "org.apache.activemq.SERIALIZABLE_PACKAGES" -> "io.gatling"
+    startBroker()
+  }
 
   override def afterAll() = {
     super.afterAll()
-    cleanUpActions.foreach(f => f())
+    synchronized {
+      cleanUpActions.foreach(_.apply())
+      cleanUpActions = Nil
+    }
     stopBroker()
   }
 
   var cleanUpActions: List[(() => Unit)] = Nil
+
+  protected def registerCleanUpAction(f: () => Unit): Unit = synchronized {
+    cleanUpActions = f :: cleanUpActions
+  }
+
   lazy val broker: BrokerService = BrokerFactory.createBroker("broker://()/gatling?persistent=false&useJmx=false")
 
   def startBroker() = {
@@ -47,15 +61,18 @@ trait BrokerBasedSpec extends AkkaSpec {
   }
 
   def createClient(destination: JmsDestination) = {
-    new SimpleJmsClient(
+    val protocol = new JmsProtocol(
+      classOf[ActiveMQInitialContextFactory].getName,
       "ConnectionFactory",
-      destination,
-      destination,
       "vm://gatling?broker.persistent=false&broker.useJmx=false",
       None,
       false,
-      classOf[ActiveMQInitialContextFactory].getName,
       1,
-      MessageIDMessageMatcher)
+      DeliveryMode.PERSISTENT,
+      None,
+      MessageIDMessageMatcher
+    )
+
+    new JmsReqReplyClient(protocol, destination, destination)
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,11 @@
 package io.gatling.core.action
 
 import io.gatling.core.stats.StatsEngine
-
-import akka.actor.{ Props, ActorRef }
 import io.gatling.core.session.{ Expression, Session }
 
-object Switch {
-  def props(nextAction: Expression[ActorRef], statsEngine: StatsEngine, next: ActorRef) =
-    Props(new Switch(nextAction, statsEngine, next))
-}
+class Switch(nextAction: Expression[Action], val statsEngine: StatsEngine, val name: String, val next: Action) extends ExitableAction {
 
-class Switch(nextAction: Expression[ActorRef], val statsEngine: StatsEngine, val next: ActorRef) extends Interruptable with Failable {
-
-  def executeOrFail(session: Session) = nextAction(session).map(_ ! session)
+  override def execute(session: Session): Unit = recover(session) {
+    nextAction(session).map(_ ! session)
+  }
 }

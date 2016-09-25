@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import java.nio.file.Path
 import io.gatling.charts.component.ComponentLibrary
 import io.gatling.charts.config.ChartsFiles.{ globalFile, menuFile }
 import io.gatling.charts.template.{ MenuTemplate, PageTemplate }
+import io.gatling.commons.stats.RequestStatsPath
+import io.gatling.commons.util.ScanHelper.deepCopyPackageContent
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.config.GatlingFiles._
-import io.gatling.core.stats.RequestStatsPath
-import io.gatling.core.util.ScanHelper.deepCopyPackageContent
 
 private[gatling] class ReportsGenerator(implicit configuration: GatlingConfiguration) {
 
@@ -31,7 +31,7 @@ private[gatling] class ReportsGenerator(implicit configuration: GatlingConfigura
     import reportsGenerationInputs._
 
       def hasAtLeastOneRequestReported: Boolean =
-        dataReader.statsPaths.exists(_.isInstanceOf[RequestStatsPath])
+        logFileReader.statsPaths.exists(_.isInstanceOf[RequestStatsPath])
 
       def generateMenu(): Unit = new TemplateWriter(menuFile(reportFolderName)).writeToFile(new MenuTemplate().getOutput)
 
@@ -48,14 +48,16 @@ private[gatling] class ReportsGenerator(implicit configuration: GatlingConfigura
       throw new UnsupportedOperationException("There were no requests sent during the simulation, reports won't be generated")
 
     val reportGenerators =
-      List(new AllSessionsReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance),
+      List(
+        new AllSessionsReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance),
         new GlobalReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance),
         new RequestDetailsReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance),
-        new GroupDetailsReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance))
+        new GroupDetailsReportGenerator(reportsGenerationInputs, ComponentLibrary.Instance)
+      )
 
     copyAssets()
     generateMenu()
-    PageTemplate.setRunInfo(dataReader.runMessage, dataReader.runEnd)
+    PageTemplate.setRunInfo(logFileReader.runMessage, logFileReader.runEnd)
     reportGenerators.foreach(_.generate())
     generateStats()
     generateAssertions()

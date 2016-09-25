@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@ package io.gatling.charts.template
 
 import java.nio.charset.Charset
 
-import io.gatling.core.stats.Group
-import io.gatling.core.stats.writer.RunMessage
-
-import com.dongxiguo.fastring.Fastring.Implicits._
-import io.gatling.core.util.HtmlHelper.HtmlRichString
-import io.gatling.core.util.StringHelper.{ RichString, Eol }
 import io.gatling.charts.FileNamingConventions
 import io.gatling.charts.component.Component
 import io.gatling.charts.config.ChartsFiles._
+import io.gatling.commons.stats.Group
+import io.gatling.commons.util.HtmlHelper._
+import io.gatling.commons.util.StringHelper._
+import io.gatling.core.stats.writer.RunMessage
+
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] object PageTemplate {
 
@@ -52,14 +52,14 @@ private[charts] abstract class PageTemplate(title: String, isDetails: Boolean, r
 
     val pageStats =
       if (isDetails) {
-        val groupHierarchy = group.map(_.hierarchy).getOrElse(Nil)
+        val groupHierarchy = group.map(_.hierarchy).getOrElse(Nil).map(_.toGroupFileName(charset))
 
         val groupAndRequestHierarchy = requestName match {
-          case Some(req) => groupHierarchy :+ req
+          case Some(req) => groupHierarchy :+ req.toRequestFileName(charset)
           case _         => groupHierarchy
         }
 
-        s"""var pageStats = stats.contents['${groupAndRequestHierarchy.map(_.toFileName(charset)).mkString("'].contents['")}'].stats;"""
+        s"""var pageStats = stats.contents['${groupAndRequestHierarchy.mkString("'].contents['")}'].stats;"""
       } else {
         "var pageStats = stats.stats;"
       }

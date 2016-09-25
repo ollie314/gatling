@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
  */
 package io.gatling
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, ImplicitSender }
 import org.scalatest.BeforeAndAfterAll
@@ -25,5 +28,8 @@ abstract class AkkaSpec
     with ImplicitSender
     with BeforeAndAfterAll {
 
-  override def afterAll() = system.shutdown()
+  override def afterAll() = {
+    val whenTerminated = system.terminate()
+    Await.result(whenTerminated, 2 seconds)
+  }
 }

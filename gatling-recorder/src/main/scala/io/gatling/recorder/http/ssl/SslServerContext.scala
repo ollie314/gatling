@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@ import java.nio.file.Path
 import java.security.{ Security, KeyStore }
 import javax.net.ssl.{ SSLEngine, X509KeyManager, KeyManagerFactory, SSLContext }
 
-import io.gatling.core.util.Io._
-import io.gatling.core.util.PathHelper._
-import io.gatling.recorder.config.RecorderConfiguration
-
 import scala.collection.concurrent.TrieMap
 import scala.util.{ Failure, Try }
+
+import io.gatling.commons.util.Io._
+import io.gatling.commons.util.PathHelper._
+import io.gatling.recorder.config.RecorderConfiguration
 
 private[http] sealed trait SslServerContext {
 

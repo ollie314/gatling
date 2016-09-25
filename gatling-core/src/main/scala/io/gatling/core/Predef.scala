@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ object Predef extends CoreDsl {
   implicit var configuration: GatlingConfiguration = _
 
   type Session = io.gatling.core.session.Session
-  type Status = io.gatling.core.stats.message.Status
+  type Status = io.gatling.commons.stats.Status
   type Simulation = io.gatling.core.scenario.Simulation
-  type Assertion = io.gatling.core.assertion.Assertion
+  type Assertion = io.gatling.commons.stats.assertion.Assertion
   type Node = jodd.lagarto.dom.Node
 
   /**
-   * Offers the same implicits conversions as [[scala.concurrent.duration.DurationInt]] for Java's Integer.
-   * @param i the Java's integer that will converted to [[scala.concurrent.duration.FiniteDuration]]
+   * Offers the same implicits conversions as scala.concurrent.duration.DurationInt for java.lang.Integer.
+   * @param i the Java's integer that will converted to scala.concurrent.duration.FiniteDuration
    */
   implicit class DurationInteger(val i: Integer) extends AnyVal {
 
@@ -64,8 +64,8 @@ object Predef extends CoreDsl {
   }
 
   /**
-   * Offers the same implicits conversions as [[scala.concurrent.duration.DurationInt]] for Java's Long.
-   * @param l the Java's Long that will converted to [[scala.concurrent.duration.FiniteDuration]]
+   * Offers the same implicits conversions as scala.concurrent.duration.DurationInt for java.lang.Long.
+   * @param l the Java's Long that will converted to scala.concurrent.duration.FiniteDuration
    */
   implicit class DurationJLong(val l: java.lang.Long) extends AnyVal {
 

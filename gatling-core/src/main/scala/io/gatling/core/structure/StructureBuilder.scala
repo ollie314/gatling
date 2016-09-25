@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
  */
 package io.gatling.core.structure
 
-import akka.actor.{ ActorSystem, ActorRef }
-import io.gatling.core.protocol.ProtocolComponentsRegistry
+import io.gatling.core.action.Action
 
 /**
  * This trait defines most of the scenario related DSL
@@ -30,7 +29,7 @@ trait StructureBuilder[B <: StructureBuilder[B]]
     with Errors[B]
     with Groups[B] {
 
-  private[gatling] def build(ctx: ScenarioContext, chainNext: ActorRef): ActorRef =
+  private[gatling] def build(ctx: ScenarioContext, chainNext: Action): Action =
     actionBuilders.foldLeft(chainNext) { (next, actionBuilder) =>
       actionBuilder.build(ctx, next)
     }

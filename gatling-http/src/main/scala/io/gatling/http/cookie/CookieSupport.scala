@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,18 @@
  */
 package io.gatling.http.cookie
 
+import io.gatling.commons.validation._
 import io.gatling.core.session.{ Session, SessionPrivateAttributes }
-import io.gatling.core.validation.SuccessWrapper
 import io.gatling.core.session.Expression
+import io.gatling.http.util.HttpTypeHelper
 
 import org.asynchttpclient.cookie.Cookie
 import org.asynchttpclient.uri.Uri
 
 object CookieSupport {
+
+  // import optimized TypeCaster
+  import HttpTypeHelper._
 
   val CookieJarAttributeName = SessionPrivateAttributes.PrivateAttributePrefix + "http.cookies"
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.http.request.builder.polling
 import scala.concurrent.duration.FiniteDuration
 
 import io.gatling.core.session._
-import io.gatling.http.action.polling.{ PollingStartBuilder, PollingStopBuilder }
+import io.gatling.http.action.async.polling.{ PollingStartBuilder, PollingStopBuilder }
 import io.gatling.http.request.builder.HttpRequestBuilder
 
 object Polling {

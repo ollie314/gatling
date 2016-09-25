@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
  */
 package io.gatling.http
 
+import io.gatling.commons.stats.KO
 import io.gatling.core.body.{ RawFileBodies, ElFileBodies }
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.core.stats.message.KO
-import io.gatling.http.action.{ FlushCacheBuilder, AddCookieBuilder, CookieDSL }
+import io.gatling.http.action.sync._
 import io.gatling.http.check.HttpCheckSupport
-import io.gatling.http.check.ws.WsCheckSupport
+import io.gatling.http.check.async.AsyncCheckSupport
 import io.gatling.http.cookie.CookieSupport
 import io.gatling.http.feeder.SitemapFeederSupport
 import io.gatling.http.protocol.{ HttpProtocolBuilder, HttpProxyBuilder }
@@ -31,7 +31,7 @@ import io.gatling.http.request.builder.polling.Polling
 import io.gatling.http.request.builder.sse.Sse
 import io.gatling.http.request.builder.ws.Ws
 
-trait HttpDsl extends HttpCheckSupport with WsCheckSupport with SitemapFeederSupport {
+trait HttpDsl extends HttpCheckSupport with AsyncCheckSupport with SitemapFeederSupport {
 
   def http(implicit configuration: GatlingConfiguration) = HttpProtocolBuilder(configuration)
 

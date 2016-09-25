@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,10 @@
  */
 package io.gatling.core.controller
 
-import scala.concurrent.duration._
 import scala.util.{ Failure, Success, Try }
 
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.controller.inject.Injector
+import io.gatling.core.controller.inject.{ InjectorCommand, Injector }
 import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.scenario.SimulationParams
 import io.gatling.core.stats.StatsEngine
@@ -39,20 +38,19 @@ object Controller {
 class Controller(statsEngine: StatsEngine, throttler: Throttler, simulationParams: SimulationParams, configuration: GatlingConfiguration)
     extends ControllerFSM {
 
+  import ControllerState._
+  import ControllerData._
+  import ControllerCommand._
+
   val maxDurationTimer = "maxDurationTimer"
-  val injectionTimer = "injectionTimer"
-  val injectorPeriod = 1 second
 
   startWith(WaitingToStart, NoData)
-
-  // -- STEP 1 :  Waiting for Gatling to start the Controller -- //
 
   when(WaitingToStart) {
     case Event(Start(scenarios), NoData) =>
       val initData = InitData(sender(), scenarios)
 
-      val injector = Injector(system, statsEngine, initData.scenarios)
-      val startedData = new StartedData(initData, injector, 0L, 0L)
+      val injector = Injector(system, self, statsEngine, initData.scenarios)
 
       simulationParams.maxDuration.foreach { maxDuration =>
         logger.debug("Setting up max duration")
@@ -60,60 +58,56 @@ class Controller(statsEngine: StatsEngine, throttler: Throttler, simulationParam
       }
 
       throttler.start()
+      statsEngine.start()
+      injector ! InjectorCommand.Start
 
-      // inject twice: one period ahead to avoid bumps
-      inject(startedData, injectorPeriod * 2)
-
-      goto(Started) using startedData
+      goto(Started) using StartedData(initData, new UserCounts(0L, 0L))
   }
-
-  private def inject(startedData: StartedData, window: FiniteDuration): Unit = {
-    val injection = startedData.injector.inject(injectorPeriod)
-    if (injection.continue)
-      setTimer(injectionTimer, ScheduleNextInjection, injectorPeriod, repeat = false)
-    startedData.expectedUsersCount += injection.count
-  }
-
-  // -- STEP 2 : The Controller is fully initialized, Simulation is now running -- //
 
   when(Started) {
-    case Event(UserMessage(_, End, _), startedData: StartedData) =>
-      processUserMessage(startedData)
+    case Event(UserMessage(session, End, _), startedData: StartedData) =>
+      logger.debug(s"End user #${session.userId}")
+      startedData.userCounts.completed += 1
+      evaluateUserCounts(startedData)
 
-    case Event(ScheduleNextInjection, startedData: StartedData) =>
-      inject(startedData, injectorPeriod)
-      stay()
+    case Event(InjectionStopped(expectedCount), startedData: StartedData) =>
+      logger.info(s"InjectionStopped expectedCount=$expectedCount")
+      startedData.userCounts.expected = expectedCount
+      evaluateUserCounts(startedData)
 
     case Event(ForceStop(exception), startedData: StartedData) =>
+      logger.info("ForceStop")
       stop(startedData, exception)
   }
 
-  private def processUserMessage(startedData: StartedData): State = {
-
-    startedData.completedUsersCount += 1
-
-    if (startedData.completedUsersCount == startedData.expectedUsersCount)
+  private def evaluateUserCounts(startedData: StartedData): State =
+    if (startedData.userCounts.allStopped) {
+      logger.info("All users are stopped")
       stop(startedData, None)
-    else
+    } else {
       stay()
-  }
+    }
 
-  private def stop(startedData: StartedData, exception: Option[Exception]): State = {
+  private def stop(startedData: StartedData, exception: Option[Throwable]): State = {
     cancelTimer(maxDurationTimer)
-    cancelTimer(injectionTimer)
+    exception match {
+      case None    => logger.info("Asking StatsEngine to stop")
+      case Some(e) => logger.error("Asking StatsEngine to stop", e)
+    }
     statsEngine.stop(self)
     goto(WaitingForResourcesToStop) using EndData(startedData.initData, exception)
   }
 
-  // -- STEP 3 : Waiting for StatsEngine to terminate, discarding all other messages -- //
+  // -- STEP 3 : Waiting for StatsEngine to stop, discarding all other messages -- //
 
   when(WaitingForResourcesToStop) {
     case Event(StatsEngineStopped, endData: EndData) =>
+      logger.info("StatsEngineStopped")
       endData.initData.launcher ! replyToLauncher(endData)
       goto(Stopped) using NoData
 
     case Event(message, _) =>
-      logger.debug(s"Ignore message $message while waiting for StatsEngine to terminate")
+      logger.debug(s"Ignore message $message while waiting for StatsEngine to stop")
       stay()
   }
 

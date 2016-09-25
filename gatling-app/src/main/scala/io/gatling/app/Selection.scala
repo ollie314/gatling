@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,18 +21,18 @@ import scala.io.StdIn
 import scala.util.{ Success, Try }
 
 import io.gatling.app.classloader.SimulationClassLoader
+import io.gatling.commons.util.StringHelper._
 import io.gatling.core.config.{ GatlingFiles, GatlingConfiguration }
 import io.gatling.core.scenario.Simulation
-import io.gatling.core.util.StringHelper._
 
-case class Selection(simulationClass: Class[Simulation], simulationId: String, description: String)
+case class Selection(simulationClass: Class[Simulation], userDefinedSimulationId: Option[String], defaultSimulationId: String, description: String)
 
 object Selection {
 
-  def apply(selectedSimulationClass: SelectedSimulationClass)(implicit configuration: GatlingConfiguration): Selection =
-    new Selector(selectedSimulationClass).selection
+  def apply(selectedSimulationClass: SelectedSimulationClass, configuration: GatlingConfiguration): Selection =
+    new Selector(selectedSimulationClass, configuration).selection
 
-  private class Selector(selectedSimulationClass: SelectedSimulationClass)(implicit configuration: GatlingConfiguration) {
+  private class Selector(selectedSimulationClass: SelectedSimulationClass, configuration: GatlingConfiguration) {
 
     def selection = {
 
@@ -43,14 +43,14 @@ object Selection {
       val simulation = singleSimulation.getOrElse(interactiveSelect(simulations))
 
       // -- Ask for simulation ID and run description if required -- //
-      val muteModeActive = configuration.core.muteMode || configuration.core.simulationClass.isDefined
-      val defaultBaseName = defaultOutputDirectoryBaseName(simulation)
+      val muteModeActive = configuration.core.muteMode || configuration.core.simulationClass.isDefined || selectedSimulationClass.isDefined
+      val defaultSimulationId = defaultOutputDirectoryBaseName(simulation)
       val optionalDescription = configuration.core.runDescription
 
-      val simulationId = if (muteModeActive) defaultBaseName else askSimulationId(simulation, defaultBaseName)
+      val simulationId = if (muteModeActive) None else askSimulationId(simulation, defaultSimulationId)
       val runDescription = optionalDescription.getOrElse(if (muteModeActive) "" else askRunDescription())
 
-      Selection(simulation, simulationId, runDescription)
+      Selection(simulation, simulationId, defaultSimulationId, runDescription)
     }
 
     private def loadSimulations: SimulationClasses = {
@@ -58,20 +58,20 @@ object Selection {
       val reportsOnly = configuration.core.directory.reportsOnly.isDefined
 
       if (fromSbt || reportsOnly) Nil
-      else SimulationClassLoader(GatlingFiles.binariesDirectory).simulationClasses.sortBy(_.getName)
+      else SimulationClassLoader(GatlingFiles.binariesDirectory(configuration)).simulationClasses.sortBy(_.getName)
     }
 
     private def trySelectingSingleSimulation(simulationClasses: SimulationClasses): SelectedSimulationClass = {
 
-        def findSelectedSingleSimulationAmongstCompileOnes(className: String): SelectedSimulationClass =
+        def findSelectedSingleSimulationAmongstCompiledOnes(className: String): SelectedSimulationClass =
           simulationClasses.find(_.getCanonicalName == className)
 
-        def findSelectedSingleSimulationInClassload(className: String): SelectedSimulationClass =
+        def findSelectedSingleSimulationInClassloader(className: String): SelectedSimulationClass =
           Try(Class.forName(className)).toOption.collect { case clazz if classOf[Simulation].isAssignableFrom(clazz) => clazz.asInstanceOf[Class[Simulation]] }
 
         def singleSimulationFromConfig =
-          configuration.core.simulationClass flatMap { className =>
-            val found = findSelectedSingleSimulationAmongstCompileOnes(className).orElse(findSelectedSingleSimulationInClassload(className))
+          configuration.core.simulationClass.flatMap { className =>
+            val found = findSelectedSingleSimulationAmongstCompiledOnes(className).orElse(findSelectedSingleSimulationInClassloader(className))
 
             if (found.isEmpty)
               err.println(s"The requested class('$className') can not be found in the classpath or does not extends Simulation.")
@@ -120,10 +120,10 @@ object Selection {
       simulationClasses(readSimulationNumber)
     }
 
-    private def askSimulationId(clazz: Class[Simulation], defaultBaseName: String): String = {
+    private def askSimulationId(clazz: Class[Simulation], defaultSimulationId: String): Option[String] = {
         @tailrec
         def loop(): String = {
-          println(s"Select simulation id (default is '$defaultBaseName'). Accepted characters are a-z, A-Z, 0-9, - and _")
+          println(s"Select simulation id (default is '$defaultSimulationId'). Accepted characters are a-z, A-Z, 0-9, - and _")
           val input = StdIn.readLine().trim
           if (input.matches("[\\w-_]*")) input
           else {
@@ -133,7 +133,7 @@ object Selection {
         }
 
       val input = loop()
-      if (input.nonEmpty) input else defaultBaseName
+      if (input.nonEmpty) Some(input) else None
     }
 
     private def askRunDescription(): String = {

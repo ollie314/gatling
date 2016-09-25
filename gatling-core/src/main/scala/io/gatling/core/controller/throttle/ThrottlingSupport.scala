@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package io.gatling.core.controller.throttle
+
+import io.gatling.core.config.GatlingConfiguration
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -53,32 +55,56 @@ trait ThrottlingSupport {
   def jumpToRps(target: Int) = Jump(target)
 }
 
+case class Throttlings(global: Option[Throttling], perScenario: Map[String, Throttling])
+
 object Throttling {
 
-  def apply(steps: Iterable[ThrottleStep]): Throttling = {
+  @tailrec
+  private def valueAt(steps: List[ThrottleStep], pendingTime: Long, previousLastValue: Int): Int = steps match {
+    case Nil => 0
+    case head :: tail =>
+      if (pendingTime < head.durationInSec)
+        head.rps(pendingTime, previousLastValue)
+      else
+        valueAt(tail, pendingTime - head.durationInSec, head.target(previousLastValue))
+  }
 
-    val limit: (Long => Int) = {
-        @tailrec
-        def valueAt(steps: List[ThrottleStep], pendingTime: Long, previousLastValue: Int): Int = steps match {
-          case Nil => 0
-          case head :: tail =>
-            if (pendingTime < head.durationInSec)
-              head.rps(pendingTime, previousLastValue)
-            else
-              valueAt(tail, pendingTime - head.durationInSec, head.target(previousLastValue))
+  def apply(steps: Iterable[ThrottleStep], configuration: GatlingConfiguration): Throttling = {
+
+    val resolvedSteps =
+      configuration.resolve(
+        // [fl]
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        // [fl]
+        steps
+      )
+
+    val reversedSteps = resolvedSteps.toList
+    val limit: (Long => Int) = (now: Long) => valueAt(reversedSteps, now, 0)
+
+    val duration: FiniteDuration =
+      resolvedSteps.foldLeft(Duration.Zero) { (acc, step) =>
+        step match {
+          case Reach(_, d) => acc + d
+          case Hold(d)     => acc + d
+          case _           => acc
         }
-
-      val reversedSteps = steps.toList
-      (now: Long) => valueAt(reversedSteps, now, 0)
-    }
-
-    val duration: FiniteDuration = steps.foldLeft(Duration.Zero) { (acc, step) =>
-      step match {
-        case Reach(_, d) => acc + d
-        case Hold(d)     => acc + d
-        case _           => acc
       }
-    }
 
     Throttling(limit, duration)
   }

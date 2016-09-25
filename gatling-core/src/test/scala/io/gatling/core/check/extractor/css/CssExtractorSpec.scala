@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,11 @@ package io.gatling.core.check.extractor.css
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import jodd.lagarto.dom.NodeSelector
-
-import io.gatling.BaseSpec
-import io.gatling.core.ValidationValues
+import io.gatling.{ ValidationValues, BaseSpec }
+import io.gatling.commons.util.Io._
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.Io._
+
+import jodd.lagarto.dom.NodeSelector
 
 class CssExtractorSpec extends BaseSpec with ValidationValues {
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,9 @@ import java.util.{ Collection => JCollection, Map => JMap }
 
 import scala.collection._
 import scala.collection.JavaConversions._
+
+import io.gatling.commons.util.Io._
 import io.gatling.core.json.JsonParsers
-import io.gatling.core.util.Io._
 import io.gatling.core.util.Resource
 
 class JsonFeederFileParser(implicit jsonParsers: JsonParsers) {

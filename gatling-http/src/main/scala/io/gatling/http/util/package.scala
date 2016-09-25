@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,30 @@
 package io.gatling.http
 
 import java.lang.{ StringBuilder => JStringBuilder }
-import java.nio.ByteBuffer
 import java.nio.charset.Charset
-import java.util.{ List => JList, Map => JMap }
+import java.util.{ List => JList }
 
 import scala.collection.JavaConversions._
+import scala.util.control.NonFatal
 
-import io.gatling.core.util.StringHelper.Eol
+import io.gatling.commons.util.StringHelper.Eol
 import io.gatling.http.response.Response
+import io.gatling.http.util.HttpHelper.isTxt
 
+import com.typesafe.scalalogging.LazyLogging
+import io.netty.buffer.ByteBufAllocator
+import io.netty.handler.codec.http.HttpHeaders
 import org.asynchttpclient.netty.request.NettyRequest
 import org.asynchttpclient.netty.request.body.NettyMultipartBody
 import org.asynchttpclient.{ Param, Request }
 import org.asynchttpclient.request.body.multipart._
 
-package object util {
+package object util extends LazyLogging {
 
   implicit class HttpStringBuilder(val buff: JStringBuilder) extends AnyVal {
 
-    def appendAhcStringsMap(map: JMap[String, JList[String]]): JStringBuilder =
-      map.entrySet.foldLeft(buff) { (buf, entry) =>
+    def appendHttpHeaders(headers: HttpHeaders): JStringBuilder =
+      headers.foldLeft(buff) { (buf, entry) =>
         buff.append(entry.getKey).append(": ").append(entry.getValue).append(Eol)
       }
 
@@ -60,9 +64,9 @@ package object util {
           }
 
         case _ =>
-          if (request.getHeaders != null && !request.getHeaders.isEmpty) {
+          if (!request.getHeaders.isEmpty) {
             buff.append("headers=").append(Eol)
-            buff.appendAhcStringsMap(request.getHeaders)
+            buff.appendHttpHeaders(request.getHeaders)
           }
 
           if (!request.getCookies.isEmpty) {
@@ -73,7 +77,7 @@ package object util {
           }
       }
 
-      if (request.getFormParams != null && !request.getFormParams.isEmpty) {
+      if (!request.getFormParams.isEmpty) {
         buff.append("params=").append(Eol)
         buff.appendParamJList(request.getFormParams)
       }
@@ -88,11 +92,11 @@ package object util {
         buff.append(Eol)
       }
 
-      if (request.getFile != null) buff.append("file=").append(request.getFile.getAbsolutePath).append(Eol)
+      if (request.getFile != null) buff.append("file=").append(request.getFile.getCanonicalPath).append(Eol)
 
-      if (request.getParts != null && !request.getParts.isEmpty) {
+      if (!request.getBodyParts.isEmpty) {
         buff.append("parts=").append(Eol)
-        request.getParts.foreach {
+        request.getBodyParts.foreach {
           case part: StringPart =>
             buff
               .append("StringPart:")
@@ -113,7 +117,7 @@ package object util {
               .append(" transferEncoding=").append(part.getTransferEncoding)
               .append(" contentId=").append(part.getContentId)
               .append(" filename=").append(part.getFileName)
-              .append(" file=").append(part.getFile.getAbsolutePath)
+              .append(" file=").append(part.getFile.getCanonicalPath)
               .append(Eol)
 
           case part: ByteArrayPart =>
@@ -133,15 +137,17 @@ package object util {
         val multipartBody = nettyRequest match {
           case Some(req) =>
             val originalMultipartBody = req.getBody.asInstanceOf[NettyMultipartBody].getBody.asInstanceOf[MultipartBody]
-            new MultipartBody(request.getParts, originalMultipartBody.getContentType, originalMultipartBody.getContentLength, originalMultipartBody.getBoundary)
+            val multipartParts = MultipartUtils.generateMultipartParts(request.getBodyParts, originalMultipartBody.getBoundary)
+            new MultipartBody(multipartParts, originalMultipartBody.getContentType, originalMultipartBody.getBoundary)
 
-          case None => MultipartUtils.newMultipartBody(request.getParts, request.getHeaders)
+          case None => MultipartUtils.newMultipartBody(request.getBodyParts, request.getHeaders)
         }
 
-        val byteBuffer = ByteBuffer.allocate(8 * 1024)
-        multipartBody.read(byteBuffer)
-        byteBuffer.flip()
-        buff.append(charset.decode(byteBuffer).toString)
+        val byteBuf = ByteBufAllocator.DEFAULT.buffer(8 * 1024)
+        multipartBody.transferTo(byteBuf)
+        buff.append(byteBuf.toString(charset))
+        multipartBody.close()
+        byteBuf.release()
       }
 
       if (request.getProxyServer != null) buff.append("proxy=").append(request.getProxyServer).append(Eol)
@@ -158,11 +164,25 @@ package object util {
 
         if (!response.headers.isEmpty) {
           buff.append("headers= ").append(Eol)
-          buff.appendAhcStringsMap(response.headers).append(Eol)
+          buff.appendHttpHeaders(response.headers).append(Eol)
         }
 
-        if (response.hasResponseBody)
-          buff.append("body=").append(Eol).append(response.body.string)
+        if (response.hasResponseBody) {
+          buff.append("body=").append(Eol)
+          if (isTxt(response.headers)) {
+            try {
+              buff.append(response.body.string)
+            } catch {
+              case NonFatal(t) =>
+                val message = "Could not decode response body"
+                logger.trace(message, t)
+                buff.append(s"$message: ${t.getMessage}")
+            }
+          } else {
+            buff.append("<<<BINARY CONTENT>>>")
+          }
+
+        }
       }
 
       buff

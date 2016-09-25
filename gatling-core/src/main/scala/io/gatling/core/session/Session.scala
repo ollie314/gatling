@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,18 @@
  */
 package io.gatling.core.session
 
+import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
-import io.gatling.core.NotNothing
+import io.gatling.commons.NotNothing
+import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.util.TimeHelper.nowMillis
+import io.gatling.commons.util.TypeCaster
+import io.gatling.commons.util.TypeHelper._
+import io.gatling.commons.validation._
 import io.gatling.core.session.el.ElMessages
-import io.gatling.core.stats.message.{ KO, OK, Status }
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.core.util.TypeHelper._
-import io.gatling.core.validation._
+import io.gatling.core.action.Action
 
-import akka.actor.ActorRef
 import com.typesafe.scalalogging.LazyLogging
 
 /**
@@ -38,8 +40,8 @@ object SessionPrivateAttributes {
 case class SessionAttribute(session: Session, key: String) {
 
   def as[T: NotNothing]: T = session.attributes(key).asInstanceOf[T]
-  def asOption[T: ClassTag: NotNothing]: Option[T] = session.attributes.get(key).flatMap(_.asOption[T])
-  def validate[T: ClassTag: NotNothing]: Validation[T] = session.attributes.get(key) match {
+  def asOption[T: TypeCaster: ClassTag: NotNothing]: Option[T] = session.attributes.get(key).flatMap(_.asOption[T])
+  def validate[T: TypeCaster: ClassTag: NotNothing]: Validation[T] = session.attributes.get(key) match {
     case Some(value) => value.asValidation[T]
     case None        => ElMessages.undefinedSessionAttribute(key)
   }
@@ -67,14 +69,15 @@ object Session {
  * @param onExit hook to execute once the user reaches the exit
  */
 case class Session(
-    scenario: String,
-    userId: Long,
+    scenario:   String,
+    userId:     Long,
     attributes: Map[String, Any] = Map.empty,
-    startDate: Long = nowMillis,
-    drift: Long = 0L,
-    baseStatus: Status = OK,
-    blockStack: List[Block] = Nil,
-    onExit: Session => Unit = Session.NothingOnExit) extends LazyLogging {
+    startDate:  Long             = nowMillis,
+    drift:      Long             = 0L,
+    baseStatus: Status           = OK,
+    blockStack: List[Block]      = Nil,
+    onExit:     Session => Unit  = Session.NothingOnExit
+) extends LazyLogging {
 
   def apply(name: String) = SessionAttribute(this, name)
   def setAll(newAttributes: (String, Any)*): Session = setAll(newAttributes.toIterable)
@@ -118,10 +121,22 @@ case class Session(
       })
   }
 
-  def groupHierarchy: List[String] = blockStack.collectFirst { case g: GroupBlock => g.hierarchy }.getOrElse(Nil)
+  def groupHierarchy: List[String] = {
 
-  private[gatling] def enterTryMax(counterName: String, loopActor: ActorRef) =
-    copy(blockStack = TryMaxBlock(counterName, loopActor) :: blockStack).initCounter(counterName)
+      @tailrec
+      def gh(blocks: List[Block]): List[String] = blocks match {
+        case Nil => Nil
+        case head :: tail => head match {
+          case g: GroupBlock => g.hierarchy
+          case _             => gh(tail)
+        }
+      }
+
+    gh(blockStack)
+  }
+
+  private[gatling] def enterTryMax(counterName: String, loopAction: Action) =
+    copy(blockStack = TryMaxBlock(counterName, loopAction) :: blockStack).initCounter(counterName, withTimestamp = false)
 
   private[gatling] def exitTryMax: Session = blockStack match {
     case TryMaxBlock(counterName, _, status) :: tail =>
@@ -169,15 +184,15 @@ case class Session(
 
   def markAsFailed: Session = updateStatus(KO)
 
-  private[gatling] def enterLoop(counterName: String, condition: Expression[Boolean], loopActor: ActorRef, exitASAP: Boolean): Session = {
+  private[gatling] def enterLoop(counterName: String, condition: Expression[Boolean], exitAction: Action, exitASAP: Boolean, timebased: Boolean): Session = {
 
     val newBlock =
       if (exitASAP)
-        ExitASAPLoopBlock(counterName, condition, loopActor)
+        ExitAsapLoopBlock(counterName, condition, exitAction)
       else
         ExitOnCompleteLoopBlock(counterName)
 
-    copy(blockStack = newBlock :: blockStack).initCounter(counterName)
+    copy(blockStack = newBlock :: blockStack).initCounter(counterName, withTimestamp = timebased)
   }
 
   private[gatling] def exitLoop: Session = blockStack match {
@@ -187,12 +202,19 @@ case class Session(
       this
   }
 
-  private[gatling] def initCounter(counterName: String): Session =
-    copy(attributes = attributes + (counterName -> 0) + (timestampName(counterName) -> nowMillis))
+  private[gatling] def initCounter(counterName: String, withTimestamp: Boolean): Session = {
+    val withCounter = attributes.updated(counterName, 0)
+    val newAttributes =
+      if (withTimestamp)
+        withCounter.updated(timestampName(counterName), nowMillis)
+      else
+        withCounter
+    copy(attributes = newAttributes)
+  }
 
   private[gatling] def incrementCounter(counterName: String): Session =
     attributes.get(counterName) match {
-      case Some(counterValue: Int) => copy(attributes = attributes + (counterName -> (counterValue + 1)))
+      case Some(counterValue: Int) => copy(attributes = attributes.updated(counterName, counterValue + 1))
       case _ =>
         logger.error(s"incrementCounter called but attribute for counterName $counterName is missing, please report.")
         this
@@ -200,7 +222,8 @@ case class Session(
 
   private[gatling] def removeCounter(counterName: String): Session =
     attributes.get(counterName) match {
-      case Some(counterValue: Int) => copy(attributes = attributes - counterName - timestampName(counterName))
+      case Some(counterValue: Int) =>
+        copy(attributes = attributes - counterName - timestampName(counterName))
       case _ =>
         logger.error(s"removeCounter called but attribute for counterName $counterName is missing, please report.")
         this

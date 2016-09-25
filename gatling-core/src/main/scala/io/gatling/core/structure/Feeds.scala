@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@ package io.gatling.core.structure
 
 import io.gatling.core.action.builder.FeedBuilder
 import io.gatling.core.feeder.FeederBuilder
-import io.gatling.core.session.{ Expression, ExpressionWrapper }
+import io.gatling.core.session._
 
 object Feeds {
 
-  val oneExpression = 1.expression
+  val oneExpression = 1.expressionSuccess
 }
 
 trait Feeds[B] extends Execs[B] {

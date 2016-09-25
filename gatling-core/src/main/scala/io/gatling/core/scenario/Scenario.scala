@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,9 @@
  */
 package io.gatling.core.scenario
 
-import io.gatling.core.session.Session
-
-import akka.actor.ActorRef
-
+import io.gatling.core.action.Action
 import io.gatling.core.controller.inject.InjectionProfile
+import io.gatling.core.session.Session
 import io.gatling.core.structure.ScenarioContext
 
-case class Scenario(name: String, entry: ActorRef, onExit: Session => Unit, injectionProfile: InjectionProfile, ctx: ScenarioContext)
+case class Scenario(name: String, entry: Action, onStart: Session => Session, onExit: Session => Unit, injectionProfile: InjectionProfile, ctx: ScenarioContext)

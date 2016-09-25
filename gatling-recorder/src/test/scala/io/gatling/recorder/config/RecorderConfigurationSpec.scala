@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import java.io.{ FileNotFoundException, File }
 import java.nio.file.Paths
 
 import io.gatling.BaseSpec
-import io.gatling.core.util.PathHelper._
+import io.gatling.commons.util.PathHelper._
 
 import org.scalatest.BeforeAndAfter
 

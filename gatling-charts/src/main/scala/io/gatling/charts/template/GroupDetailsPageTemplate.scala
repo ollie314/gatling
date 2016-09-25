@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 package io.gatling.charts.template
 
 import io.gatling.charts.component.Component
-import io.gatling.core.stats.Group
+import io.gatling.commons.stats.Group
 
 private[charts] class GroupDetailsPageTemplate(group: Group, components: Component*)
   extends PageTemplate(group.name, true, None, Some(group), components: _*)

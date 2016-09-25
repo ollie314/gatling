@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ private[charts] class AssertionsReportGenerator(reportsGenerationInputs: Reports
   import reportsGenerationInputs._
 
   def generate(): Unit = {
-    new TemplateWriter(assertionsJUnitFile(reportFolderName)).writeToFile(new AssertionsJUnitTemplate(dataReader.runMessage, assertionResults).getOutput)
-    new TemplateWriter(assertionsJsonFile(reportFolderName)).writeToFile(new AssertionsJsonTemplate(dataReader.runMessage, dataReader.scenarioNames, assertionResults).getOutput)
+    new TemplateWriter(assertionsJUnitFile(reportFolderName)).writeToFile(new AssertionsJUnitTemplate(logFileReader.runMessage, assertionResults).getOutput)
+    new TemplateWriter(assertionsJsonFile(reportFolderName)).writeToFile(new AssertionsJsonTemplate(logFileReader.runMessage, logFileReader.scenarioNames, assertionResults).getOutput)
   }
 }

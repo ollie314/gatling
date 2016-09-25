@@ -124,12 +124,6 @@ Beware that, as an optimization, Gatling doesn't pile up response chunks unless 
 
 Returns the response time of this request in milliseconds = the time between starting to send the request and finishing to receive the response.
 
-.. _http-check-latency:
-
-* ``latencyInMillis``
-
-Returns the latency of this request in milliseconds = the time between finishing to send the request and starting to receive the response.
-
 .. _http-check-body-string:
 
 * ``bodyString``
@@ -269,6 +263,10 @@ Gatling provides built-in support for the following types:
 Specifying a ``Node`` let you perform complex deep DOM tree traversing, typically in a ``transform`` check step.
 Node is a `Jodd Lagardo <http://jodd.org/doc/lagarto/>`_ DOM `Node <http://jodd.org/api/jodd/lagarto/dom/Node.html>`_.
 
+* ``form(expression)``
+
+This check takes a CSS selector and returns a ``Map[String, Seq[String]]`` of the form field values.
+
 .. _http-check-checksum:
 
 * ``md5`` and ``sha1``
@@ -400,15 +398,18 @@ Always true, used for capture an optional value.
 
 .. _http-check-validate:
 
-* ``validate(name, validator)``
+* ``validate(validator)``
 
 Built-ins validation steps actually resolve to this method.
 
 *name* is the String that would be used to describe this part in case of a failure in the final error message.
 
-*validator* is a ``(Option[X], Session) => Validation[Option[X]]`` function that performs the validation logic.
-Input is the actual extracted value and the Session.
-Output is a the Validation: a Success containing the value to be passed to the next step, a Failure with the error message otherwise.
+*validator* is a ``Expression[Validator[X]]`` function that performs the validation logic.
+
+.. includecode:: code/Checks.scala#validator
+
+The ``apply`` method takes the actual extracted value and return a the Validation:
+a Success containing the value to be passed to the next step, a Failure with the error message otherwise.
 
 .. note:: In the case where no verifying step is defined, a ``exists`` is added implicitly.
 
@@ -422,6 +423,22 @@ Saving
 Saving is an **optional** step for storing the result of the previous step (extraction or transformation) into the virtual user Session, so that it can be reused later.
 
 *key* is a ``String``.
+
+.. _http-check-conditional:
+
+Conditional Checking
+====================
+
+Check execution can be enslave to a condition.
+
+``checkIf(condition)(thenCheck)``
+
+The condition can be of two types:
+
+* ``Expression[Boolean]``
+* ``(Response, Session) => Validation[Boolean]``
+
+Nested thenCheck will only be performed if condition is successful.
 
 Putting it all together
 =======================

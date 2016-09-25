@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ private[metrics] object GraphitePath {
   private val sanitizeStringMemo = mutable.Map.empty[String, String]
   def sanitizeString(s: String) = sanitizeStringMemo.getOrElseUpdate(s, s.replace(' ', '_').replace('.', '-').replace('\\', '-'))
 
-  def graphitePath(root: String) = new GraphitePath(List(sanitizeString(root)))
+  def graphitePath(root: String) = new GraphitePath(List(root))
   def graphitePath(path: List[String]) = new GraphitePath(path.map(sanitizeString))
 }
 

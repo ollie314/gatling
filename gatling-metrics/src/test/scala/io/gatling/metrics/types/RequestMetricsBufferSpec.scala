@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,17 @@ package io.gatling.metrics.types
 import scala.collection.mutable
 
 import io.gatling.BaseSpec
+import io.gatling.commons.stats.{ KO, OK }
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.ConfigKeys._
-import io.gatling.core.stats.message.{ KO, OK }
 
 class RequestMetricsBufferSpec extends BaseSpec {
 
   val configuration = GatlingConfiguration.loadForTest(mutable.Map(
     charting.indicators.Percentile1 -> 95,
     charting.indicators.Percentile2 -> 99,
-    http.ahc.RequestTimeout -> 60000))
+    http.ahc.RequestTimeout -> 60000
+  ))
 
   def allValues(m: Metrics) = Seq(m.max, m.min, m.percentile1, m.percentile2)
 

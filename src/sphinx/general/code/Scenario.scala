@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,20 @@ class Scenario {
     session.set("foo", "bar")
   }
   //#session-lambda
+
+  def someSessionBasedCondition(session: Session): Boolean = true
+
+  //#session-improper
+  exec { session =>
+
+    if (someSessionBasedCondition(session)) {
+      // just create a builder that is immediately discarded, hence doesn't do anything
+      // you should be using a doIf here
+      http("Get Homepage").get("http://github.com/gatling/gatling")
+    }
+    session
+  }
+  //#session-improper
 
   //#flattenMapIntoAttributes
   // assuming the Session contains an attribute named "theMap" whose content is :
@@ -105,12 +119,12 @@ class Scenario {
   }
   //#forever
 
-  //#doIf-expr
-  doIf("${myKey}", "myValue") {
-    // executed if the session value stored in "myKey" equals "myValue"
+  //#doIf
+  doIf("${myBoolean}") {
+    // executed if the session value stored in "myBoolean" is true
     exec(http("...").get("..."))
   }
-  //#doIf-expr
+  //#doIf
 
   //#doIf-session
   doIf(session => session("myKey").as[String].startsWith("admin")) {
@@ -118,6 +132,13 @@ class Scenario {
     exec(http("if true").get("..."))
   }
   //#doIf-session
+
+  //#doIfEquals
+  doIfEquals("${actualValue}", "expectedValue") {
+    // executed if the session value stored in "actualValue" is equal to "expectedValue"
+    exec(http("...").get("..."))
+  }
+  //#doIfEquals
 
   //#doIfOrElse
   doIfOrElse(session => session("myKey").as[String].startsWith("admin")) {
@@ -130,11 +151,11 @@ class Scenario {
   //#doIfOrElse
 
   //#doIfEqualsOrElse
-  doIfEqualsOrElse(session => session("myKey").as[String], "expectedValue") {
-    // executed if the session value stored in "myKey" equals to "expectedValue"
+  doIfEqualsOrElse(session => session("actualValue").as[String], "expectedValue") {
+    // executed if the session value stored in "actualValue" equals to "expectedValue"
     exec(http("if true").get("..."))
   } {
-    // executed if the session value stored in "myKey" not equals to "expectedValue"
+    // executed if the session value stored in "actualValue" is not equal to "expectedValue"
     exec(http("if false").get("..."))
   }
   //#doIfEqualsOrElse

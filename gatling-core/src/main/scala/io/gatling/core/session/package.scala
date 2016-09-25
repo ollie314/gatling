@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,23 +17,38 @@ package io.gatling.core
 
 import scala.annotation.tailrec
 
-import io.gatling.core.validation._
+import io.gatling.commons.util.Maps._
+import io.gatling.commons.validation._
 import io.gatling.core.session.el._
 
 package object session {
 
   type Expression[T] = Session => Validation[T]
 
-  implicit class ExpressionWrapper[T](val value: T) extends AnyVal {
-    def expression: Expression[T] = {
+  val TrueExpressionSuccess = true.expressionSuccess
+
+  case class StaticStringExpression(value: String) extends Expression[String] {
+    val valueV = value.success
+    def apply(session: Session) = valueV
+  }
+
+  implicit class ExpressionSuccessWrapper[T](val value: T) extends AnyVal {
+    def expressionSuccess: Expression[T] = {
       val valueS = value.success
+      _ => valueS
+    }
+  }
+
+  implicit class ExpressionFailureWrapper(val message: String) extends AnyVal {
+    def expressionFailure: Expression[Nothing] = {
+      val valueS = message.failure
       _ => valueS
     }
   }
 
   implicit class RichExpression[T](val expression: Expression[T]) extends AnyVal {
     def map[U](f: T => U): Expression[U] = expression.andThen(_.map(f))
-    def safe: Expression[T] = session => validation.safe()(expression(session))
+    def safe: Expression[T] = session => safely()(expression(session))
   }
 
   def resolveOptionalExpression[T](expression: Option[Expression[T]], session: Session): Validation[Option[T]] = expression match {
@@ -64,7 +79,7 @@ package object session {
       case (key, value) =>
         val elValue = value match {
           case s: String => s.el[Any]
-          case v         => v.expression
+          case v         => v.expressionSuccess
         }
         key -> elValue
     }
@@ -73,9 +88,9 @@ package object session {
   }
 
   def map2SeqExpression(map: Map[String, Any]): Expression[Seq[(String, Any)]] = {
-    val elValues: Map[String, Expression[Any]] = map.mapValues {
+    val elValues: Map[String, Expression[Any]] = map.forceMapValues {
       case s: String => s.el[Any]
-      case v         => v.expression
+      case v         => v.expressionSuccess
     }
 
     resolveIterable(elValues)

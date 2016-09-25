@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,10 @@ object Json {
     case any                       => writeString(any.toString, rootLevel)
   }
 
-  private def writeString(s: String, rootLevel: Boolean) = if (rootLevel) fast"$s" else fast""""$s""""
+  private def writeString(s: String, rootLevel: Boolean) = {
+    val escapedLineFeeds = s.replace("\n", "\\n")
+    if (rootLevel) fast"$escapedLineFeeds" else fast""""$escapedLineFeeds""""
+  }
 
   private def writeValue(value: Any) = fast"${value.toString}"
 

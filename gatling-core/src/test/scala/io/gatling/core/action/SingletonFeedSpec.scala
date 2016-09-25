@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package io.gatling.core.action
 
 import akka.testkit._
 import io.gatling.AkkaSpec
-import io.gatling.core.controller.ForceStop
+import io.gatling.core.controller.ControllerCommand.ForceStop
 import io.gatling.core.feeder.Feeder
 import io.gatling.core.session._
 
@@ -32,7 +32,7 @@ class SingletonFeedSpec extends AkkaSpec {
     val session = Session("scenario", 0)
     val singletonFeed = createdSingletonFeed(Iterator.continually(Map("foo" -> "bar")))
 
-    singletonFeed ! FeedMessage(session, failingExpr, controller.ref, self)
+    singletonFeed ! FeedMessage(session, failingExpr, controller.ref, new ActorDelegatingAction("next", self))
 
     expectMsg(session)
     controller.expectMsgType[ForceStop]
@@ -43,11 +43,11 @@ class SingletonFeedSpec extends AkkaSpec {
     val session = Session("scenario", 0)
     val singletonFeed = createdSingletonFeed(Iterator.continually(Map("foo" -> "bar")))
 
-    singletonFeed ! FeedMessage(session, 0.expression, controller.ref, self)
+    singletonFeed ! FeedMessage(session, 0.expressionSuccess, controller.ref, new ActorDelegatingAction("next", self))
     expectMsg(session)
     controller.expectMsgType[ForceStop]
 
-    singletonFeed ! FeedMessage(session, (-1).expression, controller.ref, self)
+    singletonFeed ! FeedMessage(session, (-1).expressionSuccess, controller.ref, new ActorDelegatingAction("next", self))
     expectMsg(session)
     controller.expectMsgType[ForceStop]
   }
@@ -57,7 +57,7 @@ class SingletonFeedSpec extends AkkaSpec {
     val session = Session("scenario", 0)
     val singletonFeed = createdSingletonFeed(Iterator.empty)
 
-    singletonFeed ! FeedMessage(session, 1.expression, controller.ref, self)
+    singletonFeed ! FeedMessage(session, 1.expressionSuccess, controller.ref, new ActorDelegatingAction("next", self))
     expectMsg(session)
     controller.expectMsgType[ForceStop]
   }
@@ -67,7 +67,7 @@ class SingletonFeedSpec extends AkkaSpec {
     val session = Session("scenario", 0)
     val singletonFeed = createdSingletonFeed(Iterator.continually(Map("foo" -> "bar")))
 
-    singletonFeed ! FeedMessage(session, 1.expression, controller.ref, self)
+    singletonFeed ! FeedMessage(session, 1.expressionSuccess, controller.ref, new ActorDelegatingAction("next", self))
 
     val newSession = expectMsgType[Session]
     newSession.contains("foo") shouldBe true
@@ -79,7 +79,7 @@ class SingletonFeedSpec extends AkkaSpec {
     val session = Session("scenario", 0)
     val singletonFeed = createdSingletonFeed(Iterator.continually(Map("foo" -> "bar")))
 
-    singletonFeed ! FeedMessage(session, 2.expression, controller.ref, self)
+    singletonFeed ! FeedMessage(session, 2.expressionSuccess, controller.ref, new ActorDelegatingAction("next", self))
 
     val newSession = expectMsgType[Session]
     newSession.contains("foo1") shouldBe true

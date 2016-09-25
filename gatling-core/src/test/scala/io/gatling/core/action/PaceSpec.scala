@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,12 @@ import io.gatling.core.Predef.value2Expression
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 
+import akka.testkit._
+
 class PaceSpec extends AkkaSpec {
 
   "pace" should "run actions with a minimum wait time" in {
-    val instance = system.actorOf(Pace.props(3.seconds, "paceCounter", mock[StatsEngine], self))
+    val instance = new Pace(3.seconds, "paceCounter", system, mock[StatsEngine], new ActorDelegatingAction("next", self))
 
     // Send session, expect response near-instantly
     instance ! Session("TestScenario", 0)
@@ -41,14 +43,14 @@ class PaceSpec extends AkkaSpec {
   }
 
   it should "run actions immediately if the minimum time has expired" in {
-    val instance = system.actorOf(Pace.props(3.seconds, "paceCounter", mock[StatsEngine], self))
+    val instance = new Pace(3.seconds, "paceCounter", system, mock[StatsEngine], new ActorDelegatingAction("next", self))
 
     // Send session, expect response near-instantly
     instance ! Session("TestScenario", 0)
     val session1 = expectMsgClass(1.second, classOf[Session])
 
     // Wait 3 seconds - simulate overrunning action
-    Thread.sleep(3000L)
+    Thread.sleep(3.seconds.dilated.toMillis)
 
     // Send second session, expect response near-instantly
     instance ! session1

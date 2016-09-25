@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import java.nio.file.Path
 
 import scala.util.Properties
 
+import io.gatling.commons.util.PathHelper._
 import io.gatling.core.scenario.Simulation
-import io.gatling.core.util.PathHelper._
 
 private[app] object SimulationClassLoader {
 
@@ -43,9 +43,10 @@ private[app] class SimulationClassLoader(classLoader: ClassLoader, binaryDir: Pa
 
   def simulationClasses: List[Class[Simulation]] =
     binaryDir
-      .deepFiles
-      .collect { case file if file.hasExtension("class") => classLoader.loadClass(pathToClassName(file, binaryDir)) }
+      .deepFiles(_.path.hasExtension("class"))
+      .map(file => classLoader.loadClass(pathToClassName(file.path, binaryDir)))
       .collect { case clazz if isSimulationClass(clazz) => clazz.asInstanceOf[Class[Simulation]] }
+      .toList
 
   private def isSimulationClass(clazz: Class[_]): Boolean = {
     val isSimulation = classOf[Simulation].isAssignableFrom(clazz)

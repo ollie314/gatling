@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,19 +31,33 @@ class JmsIntegrationSpec extends JmsMockingSpec with CoreDsl with JmsDsl {
     val requestQueue = JmsQueue("request")
 
     jmsMock(requestQueue, {
-      case tm: TextMessage => tm.getText.toUpperCase
+      case tm: TextMessage =>
+        s"""<response>
+           |<hello>${tm.getText.toUpperCase()}</hello>
+           |<property><key>${tm.getStringProperty("key")}</key></property>
+           |<jmsType>${tm.getJMSType}</jmsType>
+           |</response>""".stripMargin
     })
 
     val session = runScenario(
       scenario("Jms upperCase")
+        .exec(_.set("sessionMarker", "test"))
         .exec(
           jms("toUpperCase")
             .reqreply
             .destination(requestQueue)
-            .textMessage("<hello>hi</hello>")
-            .check(xpath("/HELLO").find.saveAs("content"))))
+            .textMessage("hi ${sessionMarker}")
+            .property("key", "${sessionMarker} value")
+            .jmsType("${sessionMarker} jmsType")
+            .check(xpath("/response/hello").find.saveAs("content"))
+            .check(xpath("/response/property/key").find.saveAs("propertyValue"))
+            .check(xpath("/response/jmsType").find.saveAs("jmsType"))
+        )
+    )
 
     session.isFailed shouldBe false
-    session("content").as[String] shouldBe "HI"
+    session("content").as[String] shouldBe "HI TEST"
+    session("propertyValue").as[String] shouldBe "test value"
+    session("jmsType").as[String] shouldBe "test jmsType"
   }
 }

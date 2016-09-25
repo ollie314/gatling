@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,35 @@
 package io.gatling.core.feeder
 
 import io.gatling.BaseSpec
+import io.gatling.core.CoreComponents
 import io.gatling.core.structure.ScenarioContext
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.json.JsonParsers
+
+import org.mockito.Mockito._
 
 class JsonFeederSpec extends BaseSpec with FeederSupport {
 
   implicit val configuration = GatlingConfiguration.loadForTest()
   implicit val jsonParsers = JsonParsers()
 
+  def scenarioContext = {
+    val ctx = mock[ScenarioContext]
+    val coreComponents = mock[CoreComponents]
+    when(coreComponents.configuration) thenReturn configuration
+    when(ctx.coreComponents) thenReturn coreComponents
+    ctx
+  }
+
   "jsonFile" should "handle proper JSON file" in {
-    val data = jsonFile("test.json").build(mock[ScenarioContext]).toArray
+    val data = jsonFile("test.json").build(scenarioContext).toArray
 
     data.size shouldBe 2
     data(0)("id") shouldBe 19434
   }
 
   "jsonUrl" should "retrieve and handle proper JSON file" in {
-    val data = jsonUrl(getClass.getClassLoader.getResource("test.json").toString).build(mock[ScenarioContext]).toArray
+    val data = jsonUrl(getClass.getClassLoader.getResource("test.json").toString).build(scenarioContext).toArray
     data.size shouldBe 2
     data(0)("id") shouldBe 19434
   }

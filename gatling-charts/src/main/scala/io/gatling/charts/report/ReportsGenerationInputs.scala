@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
  */
 package io.gatling.charts.report
 
-import io.gatling.core.assertion.AssertionResult
-import io.gatling.core.stats.reader.DataReader
+import io.gatling.charts.stats.LogFileReader
+import io.gatling.commons.stats.assertion.AssertionResult
 
 private[gatling] case class ReportsGenerationInputs(
   reportFolderName: String,
-  dataReader: DataReader,
-  assertionResults: List[AssertionResult])
+  logFileReader:    LogFileReader,
+  assertionResults: List[AssertionResult]
+)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,17 @@
  */
 package io.gatling.core.assertion
 
+import io.gatling.commons.stats.assertion.{ AssertionPathParts, Details, ForAll, Global }
 import io.gatling.core.config.GatlingConfiguration
 
 trait AssertionSupport {
 
-  implicit def string2pathBuilder(string: String): AssertionPath =
-    AssertionPath.string2assertionPath(string)
+  implicit def string2PathParts(string: String): AssertionPathParts =
+    AssertionPathParts.string2PathParts(string)
 
   def global(implicit configuration: GatlingConfiguration) = new AssertionWithPath(Global)
 
   def forAll(implicit configuration: GatlingConfiguration) = new AssertionWithPath(ForAll)
 
-  def details(path: AssertionPath)(implicit configuration: GatlingConfiguration) = new AssertionWithPath(Details(path.parts))
+  def details(pathParts: AssertionPathParts)(implicit configuration: GatlingConfiguration) = new AssertionWithPath(Details(pathParts.parts))
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,19 +15,19 @@
  */
 package io.gatling.charts.component
 
-import com.dongxiguo.fastring.Fastring.Implicits._
-
+import io.gatling.commons.stats.GeneralStats
+import io.gatling.commons.util.NumberHelper._
+import io.gatling.commons.util.StringHelper.EmptyFastring
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.reader.DataReader
-import io.gatling.core.util.NumberHelper._
-import io.gatling.core.util.StringHelper.EmptyFastring
+
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] object Statistics {
   def printable[T: Numeric](value: T) =
     value match {
-      case DataReader.NoPlotMagicValue => "-"
-      case (_: Int) | (_: Long)        => value.toString
-      case _                           => implicitly[Numeric[T]].toDouble(value).toPrintableString
+      case GeneralStats.NoPlotMagicValue => "-"
+      case (_: Int) | (_: Long)          => value.toString
+      case _                             => implicitly[Numeric[T]].toDouble(value).toPrintableString
     }
 }
 
@@ -36,22 +36,24 @@ private[charts] case class Statistics[T: Numeric](name: String, total: T, succes
 }
 
 private[charts] case class GroupedCount(name: String, count: Int, total: Int) {
-  val percentage: Int = if (total == 0) 0 else math.round(count.toDouble / total * 100).toInt
+  val percentage: Int = if (total == 0) 0 else (count.toDouble / total * 100).round.toInt
 }
 
-private[charts] case class RequestStatistics(name: String,
-                                             path: String,
-                                             numberOfRequestsStatistics: Statistics[Int],
-                                             minResponseTimeStatistics: Statistics[Int],
-                                             maxResponseTimeStatistics: Statistics[Int],
-                                             meanStatistics: Statistics[Int],
-                                             stdDeviationStatistics: Statistics[Int],
-                                             percentiles1: Statistics[Int],
-                                             percentiles2: Statistics[Int],
-                                             percentiles3: Statistics[Int],
-                                             percentiles4: Statistics[Int],
-                                             groupedCounts: Seq[GroupedCount],
-                                             meanNumberOfRequestsPerSecondStatistics: Statistics[Double])
+private[charts] case class RequestStatistics(
+  name:                                    String,
+  path:                                    String,
+  numberOfRequestsStatistics:              Statistics[Int],
+  minResponseTimeStatistics:               Statistics[Int],
+  maxResponseTimeStatistics:               Statistics[Int],
+  meanStatistics:                          Statistics[Int],
+  stdDeviationStatistics:                  Statistics[Int],
+  percentiles1:                            Statistics[Int],
+  percentiles2:                            Statistics[Int],
+  percentiles3:                            Statistics[Int],
+  percentiles4:                            Statistics[Int],
+  groupedCounts:                           Seq[GroupedCount],
+  meanNumberOfRequestsPerSecondStatistics: Statistics[Double]
+)
 
 private[charts] class StatisticsTextComponent(implicit configuration: GatlingConfiguration) extends Component {
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ package io.gatling.http
 
 import io.gatling.http.protocol.Proxy
 
+import org.asynchttpclient.Dsl
+import org.asynchttpclient.Realm.AuthScheme
 import org.asynchttpclient.proxy.ProxyServer
-import org.asynchttpclient.proxy.ProxyServer.Protocol
 
 package object ahc {
 
@@ -26,11 +27,9 @@ package object ahc {
 
   implicit class ProxyConverter(val proxy: Proxy) extends AnyVal {
 
-    private def proxyServer(protocol: Protocol, port: Int): ProxyServer = {
-      val (username, password) = proxy.credentials.map(c => (c.username, c.password)).getOrElse(NoCredentials)
-      new ProxyServer(protocol, proxy.host, port, username, password)
+    def proxyServer: ProxyServer = {
+      val realm = proxy.credentials.map(c => Dsl.realm(AuthScheme.BASIC, c.username, c.password).build)
+      Dsl.proxyServer(proxy.host, proxy.port).setSecuredPort(proxy.securePort).setRealm(realm.orNull).build
     }
-
-    def proxyServers: (ProxyServer, ProxyServer) = (proxyServer(Protocol.HTTP, proxy.port), proxyServer(Protocol.HTTPS, proxy.securePort))
   }
 }

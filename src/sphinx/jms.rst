@@ -4,7 +4,7 @@
 JMS
 ###
 
-JMS support was initially contributed by Jason Koch.
+JMS support was initially contributed by `Jason Koch <https://github.com/jasonk000>`_.
 
 Prerequisites
 =============
@@ -42,7 +42,7 @@ Use the ``jms("requestName")`` method in order to create a JMS request.
 Request Type
 ------------
 
-Currently, only ``reqreply`` request type is supported.
+Currently, ``reqreply`` and ``send`` (fire and forget) requests are supported.
 
 Destination
 -----------
@@ -73,6 +73,11 @@ Properties
 ----------
 
 One can send additional properties with ``property(Expression[String], Expression[Any])``.
+
+JMS Type
+----------
+
+Jms type can be specified with ``jmsType(Expression[String])``.
 
 JMS Check API
 =============

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,22 +20,27 @@ import java.text.SimpleDateFormat
 
 import scala.util.Try
 
-import io.gatling.core.util.StringHelper.RichString
-import Json.{ JsonToInt, JsonToString }
+import io.gatling.commons.util.StringHelper.RichString
+import io.gatling.recorder.har.Json.{ JsonToInt, JsonToString }
 
 import org.asynchttpclient.util.Base64
 
 private[har] object HarMapping {
 
   private val ProtectedValue = """"(.*)\"""".r
-  private val Iso8601ZonedDateAndTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX")
 
   // HAR files are required to be saved in UTF-8 encoding, other encodings are forbidden
   val Charset = StandardCharsets.UTF_8
 
   def jsonToHttpArchive(json: Json): HttpArchive = HttpArchive(buildLog(json.log))
 
-  private def parseMillisFromIso8601DateTime(time: String): Long = Iso8601ZonedDateAndTime.parse(time).getTime
+  // Correctly parse the date when the millisecond field contains more than three digits
+  // IOW, fix this error:
+  // java.text.ParseException: Unparseable date: "2016-06-16T13:22:09.1137657-05:00"
+  //     at java.text.DateFormat.parse(DateFormat.java:366)
+  //     at io.gatling.recorder.har.HarMapping$.parseMillisFromIso8601DateTime(HarMapping.scala:38)
+  //     ...
+  private def parseMillisFromIso8601DateTime(time: String): Long = java.time.ZonedDateTime.parse(time).toInstant().toEpochMilli
 
   private def buildLog(log: Json): Log = {
     val entries = log.entries.iterator
@@ -53,9 +58,11 @@ private[har] object HarMapping {
     val startTime = parseMillisFromIso8601DateTime(entry.startedDateTime)
     // what a thing of beauty!!!
     val time = Try(entry.time.toLong).getOrElse(entry.time.toDouble.toLong)
-    Entry(startTime,
+    Entry(
+      startTime,
       startTime + time,
-      buildRequest(entry.request), buildResponse(entry.response))
+      buildRequest(entry.request), buildResponse(entry.response)
+    )
   }
 
   private def buildRequest(request: Json): Request = {

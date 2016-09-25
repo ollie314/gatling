@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,15 @@
  */
 package io.gatling.core.stats.writer
 
-import java.lang.System.currentTimeMillis
-
 import scala.collection.mutable
 import scala.concurrent.duration.DurationInt
 
+import io.gatling.commons.stats.{ KO, OK }
+import io.gatling.commons.util.TimeHelper._
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.message.{ End, Start, KO, OK }
+import io.gatling.core.stats.message.{ End, Start }
 
-class UserCounters(val totalUserEstimate: Int) {
+class UserCounters(val userCount: Int) {
 
   private var _activeCount: Int = 0
   private var _doneCount: Int = 0
@@ -33,19 +33,20 @@ class UserCounters(val totalUserEstimate: Int) {
 
   def userStart(): Unit = { _activeCount += 1 }
   def userDone(): Unit = { _activeCount -= 1; _doneCount += 1 }
-  def waitingCount: Int = math.max(totalUserEstimate - _activeCount - _doneCount, 0)
+  def waitingCount: Int = math.max(userCount - _activeCount - _doneCount, 0)
 }
 
 class RequestCounters(var successfulCount: Int = 0, var failedCount: Int = 0)
 
 class ConsoleData(
-  val configuration: GatlingConfiguration,
-  val startUpTime: Long,
-  var complete: Boolean = false,
-  val usersCounters: mutable.Map[String, UserCounters] = mutable.Map.empty[String, UserCounters],
-  val globalRequestCounters: RequestCounters = new RequestCounters,
-  val requestsCounters: mutable.Map[String, RequestCounters] = mutable.LinkedHashMap.empty,
-  val errorsCounters: mutable.Map[String, Int] = mutable.LinkedHashMap.empty)
+  val configuration:         GatlingConfiguration,
+  val startUpTime:           Long,
+  var complete:              Boolean                              = false,
+  val usersCounters:         mutable.Map[String, UserCounters]    = mutable.Map.empty[String, UserCounters],
+  val globalRequestCounters: RequestCounters                      = new RequestCounters,
+  val requestsCounters:      mutable.Map[String, RequestCounters] = mutable.LinkedHashMap.empty,
+  val errorsCounters:        mutable.Map[String, Int]             = mutable.LinkedHashMap.empty
+)
     extends DataWriterData
 
 class ConsoleDataWriter extends DataWriter[ConsoleData] {
@@ -56,9 +57,9 @@ class ConsoleDataWriter extends DataWriter[ConsoleData] {
 
     import init._
 
-    val data = new ConsoleData(configuration, currentTimeMillis)
+    val data = new ConsoleData(configuration, nowMillis)
 
-    scenarios.foreach(scenario => data.usersCounters.put(scenario.name, new UserCounters(scenario.totalUserEstimate)))
+    scenarios.foreach(scenario => data.usersCounters.put(scenario.name, new UserCounters(scenario.userCount)))
 
     setTimer(flushTimerName, Flush, 5 seconds, repeat = true)
 
@@ -68,7 +69,7 @@ class ConsoleDataWriter extends DataWriter[ConsoleData] {
   override def onFlush(data: ConsoleData): Unit = {
     import data._
 
-    val runDuration = (currentTimeMillis - startUpTime) / 1000
+    val runDuration = (nowMillis - startUpTime) / 1000
 
     val summary = ConsoleSummary(runDuration, usersCounters, globalRequestCounters, requestsCounters, errorsCounters, configuration)
     complete = summary.complete

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,109 +15,153 @@
  */
 package io.gatling.jms.action
 
+import java.lang.{ Boolean => JBoolean }
+import java.util.{ Collections => JCollections, LinkedHashMap => JLinkedHashMap, Map => JMap }
 import javax.jms.Message
 
 import scala.collection.mutable
 
-import io.gatling.core.Predef.Session
+import io.gatling.commons.stats.{ KO, OK, Status }
+import io.gatling.commons.util.TimeHelper.nowMillis
+import io.gatling.commons.validation.Failure
+import io.gatling.core.action.Action
 import io.gatling.core.akka.BaseActor
 import io.gatling.core.check.Check
+import io.gatling.core.config.GatlingConfiguration
+import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.message.{ KO, OK, Status, ResponseTimings }
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.core.validation.Failure
+import io.gatling.core.stats.message.ResponseTimings
 import io.gatling.jms._
 
-import akka.actor.{ ActorRef, Props }
+import akka.actor.Props
 
 /**
  * Advise actor a message was sent to JMS provider
- * @author jasonk@bluedevel.com
  */
 case class MessageSent(
-  requestId: String,
-  startSend: Long,
-  endSend: Long,
-  checks: List[JmsCheck],
-  session: Session,
-  next: ActorRef,
-  title: String)
+  replyDestinationName: String,
+  matchId:              String,
+  sent:                 Long,
+  checks:               List[JmsCheck],
+  session:              Session,
+  next:                 Action,
+  title:                String
+)
 
 /**
  * Advise actor a response message was received from JMS provider
  */
-case class MessageReceived(responseId: String, received: Long, message: Message)
+case class MessageReceived(
+  replyDestinationName: String,
+  matchId:              String,
+  received:             Long,
+  message:              Message
+)
+
+/**
+ * Advise actor that the blocking receive failed
+ */
+case object BlockingReceiveReturnedNull
 
 object JmsRequestTrackerActor {
-  def props(statsEngine: StatsEngine) = Props(new JmsRequestTrackerActor(statsEngine))
+  def props(statsEngine: StatsEngine, configuration: GatlingConfiguration) = Props(new JmsRequestTrackerActor(statsEngine, configuration))
 }
+
+case class MessageKey(replyDestinationName: String, matchId: String)
 
 /**
  * Bookkeeping actor to correlate request and response JMS messages
  * Once a message is correlated, it publishes to the Gatling core DataWriter
  */
-class JmsRequestTrackerActor(statsEngine: StatsEngine) extends BaseActor {
+class JmsRequestTrackerActor(statsEngine: StatsEngine, configuration: GatlingConfiguration) extends BaseActor {
 
-  // messages to be tracked through this HashMap - note it is a mutable hashmap
-  val sentMessages = mutable.HashMap.empty[String, (Long, Long, List[JmsCheck], Session, ActorRef, String)]
-  val receivedMessages = mutable.HashMap.empty[String, (Long, Message)]
+  private val sentMessages = mutable.HashMap.empty[MessageKey, MessageSent]
+  private val receivedMessages = mutable.HashMap.empty[MessageKey, MessageReceived]
+  private val duplicateMessageProtectionEnabled = configuration.jms.acknowledgedMessagesBufferSize > 0
+  private val acknowledgedMessagesHistory: JMap[MessageKey, JBoolean] =
+    if (duplicateMessageProtectionEnabled)
+      new JLinkedHashMap[MessageKey, JBoolean](configuration.jms.acknowledgedMessagesBufferSize, 0.75f, false)
+    else
+      JCollections.emptyMap()
 
   // Actor receive loop
   def receive = {
 
     // message was sent; add the timestamps to the map
-    case MessageSent(corrId, startSend, endSend, checks, session, next, title) =>
-      receivedMessages.get(corrId) match {
-        case Some((received, message)) =>
-          // message was received out of order, lets just deal with it
-          processMessage(session, startSend, received, endSend, checks, message, next, title)
-          receivedMessages -= corrId
-
+    case messageSent @ MessageSent(queueName, correlationId, sent, checks, session, next, title) =>
+      val messageKey = MessageKey(queueName, correlationId)
+      receivedMessages.get(messageKey) match {
         case None =>
           // normal path
-          val sentMessage = (startSend, endSend, checks, session, next, title)
-          sentMessages += corrId -> sentMessage
+          sentMessages += messageKey -> messageSent
+
+        case Some(MessageReceived(_, _, received, message)) =>
+          // message was received out of order, lets just deal with it
+          processMessage(session, sent, received, checks, message, next, title)
+          receivedMessages -= messageKey
       }
 
     // message was received; publish to the datawriter and remove from the hashmap
-    case MessageReceived(corrId, received, message) =>
-      sentMessages.get(corrId) match {
-        case Some((startSend, endSend, checks, session, next, title)) =>
-          processMessage(session, startSend, received, endSend, checks, message, next, title)
-          sentMessages -= corrId
+    case messageReceived @ MessageReceived(queueName, correlationId, received, message) =>
+      val messageKey = MessageKey(queueName, correlationId)
+      sentMessages.get(messageKey) match {
+        case Some(MessageSent(_, _, sent, checks, session, next, title)) =>
+          processMessage(session, sent, received, checks, message, next, title)
+          sentMessages -= messageKey
+          if (duplicateMessageProtectionEnabled) {
+            acknowledgedMessagesHistory.put(messageKey, JBoolean.TRUE)
+          }
 
         case None =>
-          // failed to find message; early receive? or bad return correlation id?
-          // let's add it to the received messages buffer just in case
-          val receivedMessage = (received, message)
-          receivedMessages += corrId -> receivedMessage
+          if (!acknowledgedMessagesHistory.containsValue(messageKey)) {
+            // failed to find message; early receive? or bad return correlation id?
+            // let's add it to the received messages buffer just in case
+            receivedMessages += messageKey -> messageReceived
+          }
+        // else, message was already acked and is a dup
       }
+
+    case BlockingReceiveReturnedNull =>
+      //Fail all the sent messages because we do not even have a correlation id
+      sentMessages.foreach {
+        case (messageKey, MessageSent(_, _, sent, checks, session, next, title)) =>
+          executeNext(session, sent, nowMillis, KO, next, title, Some("Blocking received returned null"))
+          sentMessages -= messageKey
+      }
+  }
+
+  private def executeNext(
+    session:  Session,
+    sent:     Long,
+    received: Long,
+    status:   Status,
+    next:     Action,
+    title:    String,
+    message:  Option[String] = None
+  ) = {
+    val timings = ResponseTimings(sent, received)
+    statsEngine.logResponse(session, title, timings, status, None, message)
+    next ! session.logGroupRequest(timings.responseTime, status).increaseDrift(nowMillis - received)
   }
 
   /**
    * Processes a matched message
    */
-  def processMessage(session: Session,
-                     startSend: Long,
-                     received: Long,
-                     endSend: Long,
-                     checks: List[JmsCheck],
-                     message: Message,
-                     next: ActorRef,
-                     title: String): Unit = {
-
-      def executeNext(updatedSession: Session, status: Status, message: Option[String] = None) = {
-        val timings = ResponseTimings(startSend, endSend, endSend, received)
-        statsEngine.logResponse(updatedSession, title, timings, status, None, message)
-        next ! updatedSession.logGroupRequest((received - startSend).toInt, status).increaseDrift(nowMillis - received)
-      }
-
+  private def processMessage(
+    session:  Session,
+    sent:     Long,
+    received: Long,
+    checks:   List[JmsCheck],
+    message:  Message,
+    next:     Action,
+    title:    String
+  ): Unit = {
     // run all the checks, advise the Gatling API that it is complete and move to next
     val (checkSaveUpdate, error) = Check.check(message, session, checks)
     val newSession = checkSaveUpdate(session)
     error match {
-      case None                   => executeNext(newSession, OK)
-      case Some(Failure(message)) => executeNext(newSession.markAsFailed, KO, Some(message))
+      case None                        => executeNext(newSession, sent, received, OK, next, title)
+      case Some(Failure(errorMessage)) => executeNext(newSession.markAsFailed, sent, received, KO, next, title, Some(errorMessage))
     }
   }
 }

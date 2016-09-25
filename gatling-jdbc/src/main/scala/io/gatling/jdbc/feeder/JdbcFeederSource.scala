@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import java.sql.ResultSet.{ CONCUR_READ_ONLY, TYPE_FORWARD_ONLY }
 import scala.annotation.tailrec
 import scala.collection.breakOut
 
+import io.gatling.commons.util.Io._
 import io.gatling.core.feeder.Record
-import io.gatling.core.util.Io.withCloseable
 
 object JdbcFeederSource {
 

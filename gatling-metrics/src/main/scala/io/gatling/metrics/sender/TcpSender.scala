@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,16 @@ package io.gatling.metrics.sender
 import java.net.InetSocketAddress
 
 import scala.concurrent.duration._
-
-import io.gatling.core.util.Retry
+import io.gatling.commons.util.Retry
 import io.gatling.metrics.message.GraphiteMetrics
 
 import akka.io.{ IO, Tcp }
 
 private[metrics] class TcpSender(
-    remote: InetSocketAddress,
-    maxRetries: Int,
-    retryWindow: FiniteDuration) extends MetricsSender with TcpSenderFSM {
+    remote:      InetSocketAddress,
+    maxRetries:  Int,
+    retryWindow: FiniteDuration
+) extends MetricsSender with TcpSenderFSM {
 
   import Tcp._
 

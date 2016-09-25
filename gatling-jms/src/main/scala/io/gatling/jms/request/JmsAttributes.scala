@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
  */
 package io.gatling.jms.request
 
-import io.gatling.jms.JmsCheck
 import io.gatling.core.session.Expression
+import io.gatling.jms.JmsCheck
 
 /**
  * JmsAttributes carries around the JMS settings.
@@ -28,10 +28,11 @@ import io.gatling.core.session.Expression
  * @author jasonk@bluedevel.com
  */
 case class JmsAttributes(
-  requestName: String,
-  destination: JmsDestination,
-  replyDestination: JmsDestination,
-  selector: Option[String],
-  message: JmsMessage,
+  requestName:       String,
+  destination:       JmsDestination,
+  selector:          Option[String],
+  message:           JmsMessage,
   messageProperties: Map[Expression[String], Expression[Any]] = Map.empty,
-  checks: List[JmsCheck] = Nil)
+  jmsType:           Option[Expression[String]]               = None,
+  checks:            List[JmsCheck]                           = Nil
+)

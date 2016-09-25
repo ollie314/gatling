@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,22 +18,26 @@ package io.gatling.metrics
 import scala.collection.mutable
 import scala.concurrent.duration.DurationInt
 
+import io.gatling.commons.util.Collections._
+import io.gatling.commons.util.TimeHelper.nowSeconds
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.stats.writer._
-import io.gatling.core.util.TimeHelper.nowSeconds
+import io.gatling.core.util.NameGen
 import io.gatling.metrics.message.GraphiteMetrics
 import io.gatling.metrics.sender.MetricsSender
 import io.gatling.metrics.types._
 
 import akka.actor.ActorRef
 
-case class GraphiteData(configuration: GatlingConfiguration,
-                        metricsSender: ActorRef,
-                        requestsByPath: mutable.Map[GraphitePath, RequestMetricsBuffer],
-                        usersByScenario: mutable.Map[GraphitePath, UserBreakdownBuffer],
-                        format: GraphitePathPattern) extends DataWriterData
+case class GraphiteData(
+  configuration:   GatlingConfiguration,
+  metricsSender:   ActorRef,
+  requestsByPath:  mutable.Map[GraphitePath, RequestMetricsBuffer],
+  usersByScenario: mutable.Map[GraphitePath, UserBreakdownBuffer],
+  format:          GraphitePathPattern
+) extends DataWriterData
 
-private[gatling] class GraphiteDataWriter extends DataWriter[GraphiteData] {
+private[gatling] class GraphiteDataWriter extends DataWriter[GraphiteData] with NameGen {
 
   def newResponseMetricsBuffer(configuration: GatlingConfiguration): RequestMetricsBuffer =
     new HistogramRequestMetricsBuffer(configuration)
@@ -43,14 +47,14 @@ private[gatling] class GraphiteDataWriter extends DataWriter[GraphiteData] {
   def onInit(init: Init): GraphiteData = {
     import init._
 
-    val metricsSender: ActorRef = context.actorOf(MetricsSender.props(configuration), actorName("metricsSender"))
+    val metricsSender: ActorRef = context.actorOf(MetricsSender.props(configuration), genName("metricsSender"))
     val requestsByPath = mutable.Map.empty[GraphitePath, RequestMetricsBuffer]
     val usersByScenario = mutable.Map.empty[GraphitePath, UserBreakdownBuffer]
 
     val pattern: GraphitePathPattern = new OldGraphitePathPattern(runMessage, configuration)
 
-    usersByScenario.update(pattern.allUsersPath, new UserBreakdownBuffer(scenarios.map(_.totalUserEstimate).sum))
-    scenarios.foreach(scenario => usersByScenario += (pattern.usersPath(scenario.name) -> new UserBreakdownBuffer(scenario.totalUserEstimate)))
+    usersByScenario.update(pattern.allUsersPath, new UserBreakdownBuffer(scenarios.sumBy(_.userCount)))
+    scenarios.foreach(scenario => usersByScenario += (pattern.usersPath(scenario.name) -> new UserBreakdownBuffer(scenario.userCount)))
 
     setTimer(flushTimerName, Flush, configuration.data.graphite.writeInterval seconds, repeat = true)
 
@@ -94,10 +98,12 @@ private[gatling] class GraphiteDataWriter extends DataWriter[GraphiteData] {
 
   def onStop(data: GraphiteData): Unit = cancelTimer(flushTimerName)
 
-  private def sendMetricsToGraphite(data: GraphiteData,
-                                    epoch: Long,
-                                    requestsMetrics: Map[GraphitePath, MetricByStatus],
-                                    userBreakdowns: Map[GraphitePath, UserBreakdown]): Unit = {
+  private def sendMetricsToGraphite(
+    data:            GraphiteData,
+    epoch:           Long,
+    requestsMetrics: Map[GraphitePath, MetricByStatus],
+    userBreakdowns:  Map[GraphitePath, UserBreakdown]
+  ): Unit = {
 
     import data._
     metricsSender ! GraphiteMetrics(format.metrics(userBreakdowns, requestsMetrics), epoch)

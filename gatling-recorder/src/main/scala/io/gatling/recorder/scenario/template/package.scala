@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ package object template {
   val SimpleQuotes = "\""
   val TripleQuotes = SimpleQuotes * 3
 
-  private def isEscapeCharacter(char: Char) = char == '\\' || char == '"'
+  private def isUnsafeStringChar(char: Char) = char == '\\' || char == '"' || char == '\n'
 
-  private def containsEscapeCharacters(string: String) = string.exists(isEscapeCharacter)
+  private def containsEscapeCharacters(string: String) = string.exists(isUnsafeStringChar)
 
   def protectWithTripleQuotes(string: String): Fastring = {
     val stringDelimiter = if (containsEscapeCharacters(string)) TripleQuotes else SimpleQuotes

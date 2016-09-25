@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,16 @@
  */
 package io.gatling.http.request
 
+import io.gatling.commons.stats.Status
 import io.gatling.core.session.Session
-import io.gatling.core.stats.message.Status
 import io.gatling.http.response.Response
 
 import org.asynchttpclient.Request
 
 case class ExtraInfo(
   requestName: String,
-  status: Status,
-  session: Session,
-  request: Request,
-  response: Response)
+  status:      Status,
+  session:     Session,
+  request:     Request,
+  response:    Response
+)

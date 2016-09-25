@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ import io.gatling.http.HeaderValues._
 import io.gatling.http.fetch.{ EmbeddedResource, HtmlParser }
 import io.gatling.http.util.HttpHelper.parseFormBody
 import io.gatling.recorder.config.RecorderConfiguration
+import io.gatling.recorder.http.model.{SafeHttpRequest, SafeHttpResponse}
 
 import org.asynchttpclient.util.Base64
 import org.asynchttpclient.uri.Uri
-import org.jboss.netty.handler.codec.http.{ HttpMessage, HttpRequest, HttpResponse }
 
 private[recorder] case class TimedScenarioElement[+T <: ScenarioElement](sendTime: Long, arrivalTime: Long, element: T)
 
@@ -50,43 +50,47 @@ private[recorder] object RequestElement {
 
   val HtmlContentType = """(?i)text/html\s*(;\s+charset=(.+))?""".r
 
-  private def extractContent(message: HttpMessage) =
-    if (message.getContent.readableBytes > 0) {
-      val bufferBytes = new Array[Byte](message.getContent.readableBytes)
-      message.getContent.getBytes(message.getContent.readerIndex, bufferBytes)
-      Some(bufferBytes)
-    } else None
-
   val CacheHeaders = Set(CacheControl, IfMatch, IfModifiedSince, IfNoneMatch, IfRange, IfUnmodifiedSince)
 
-  def apply(request: HttpRequest, response: HttpResponse)(implicit configuration: RecorderConfiguration): RequestElement = {
+  def apply(request: SafeHttpRequest, response: SafeHttpResponse)(implicit configuration: RecorderConfiguration): RequestElement = {
     val requestHeaders: Map[String, String] = request.headers.entries.map { entry => (entry.getKey, entry.getValue) }(breakOut)
     val requestContentType = requestHeaders.get(ContentType)
     val requestUserAgent = requestHeaders.get(UserAgent)
-    val responseContentType = Option(response.headers().get(ContentType))
+    val responseContentType = Option(response.headers.get(ContentType))
+
+    val containsFormParams = requestContentType.exists(_.contains(ApplicationFormUrlEncoded))
+
+    val requestBody =
+      if (request.body.nonEmpty) {
+        if (containsFormParams)
+          // The payload consists of a Unicode string using only characters in the range U+0000 to U+007F
+          // cf: http://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-decoding-algorithm
+          Some(RequestBodyParams(parseFormBody(new String(request.body, UTF8.name))))
+        else
+          Some(RequestBodyBytes(request.body))
+      } else {
+        None
+      }
+
+    val responseBody =
+      if (response.body.nonEmpty) {
+        Some(ResponseBodyBytes(response.body))
+      } else {
+        None
+      }
 
     val embeddedResources = responseContentType.collect {
       case HtmlContentType(_, headerCharset) =>
         val charsetName = Option(headerCharset).filter(Charset.isSupported).getOrElse(UTF8.name)
         val charset = Charset.forName(charsetName)
-        extractContent(response).map(bytes => {
-          val htmlBuff = new String(bytes, charset)
-          val userAgent = requestHeaders.get(UserAgent).flatMap(io.gatling.http.fetch.UserAgent.parseFromHeader)
-          new HtmlParser().getEmbeddedResources(Uri.create(request.getUri), htmlBuff, userAgent)
-        })
+        if (response.body.nonEmpty) {
+          val htmlBuff = new String(response.body, charset)
+          val userAgent = requestUserAgent.flatMap(io.gatling.http.fetch.UserAgent.parseFromHeader)
+          Some(new HtmlParser().getEmbeddedResources(Uri.create(request.uri), htmlBuff, userAgent))
+        } else {
+          None
+        }
     }.flatten.getOrElse(Nil)
-
-    val containsFormParams = requestContentType.exists(_.contains(ApplicationFormUrlEncoded))
-
-    val requestBody = extractContent(request).map(content =>
-      if (containsFormParams)
-        // The payload consists of a Unicode string using only characters in the range U+0000 to U+007F
-        // cf: http://www.w3.org/TR/html5/forms.html#application/x-www-form-urlencoded-decoding-algorithm
-        RequestBodyParams(parseFormBody(new String(content, UTF8.name)))
-      else
-        RequestBodyBytes(content))
-
-    val responseBody = extractContent(request) map ResponseBodyBytes
 
     val filteredRequestHeaders =
       if (configuration.http.removeCacheHeaders)
@@ -94,18 +98,20 @@ private[recorder] object RequestElement {
       else
         requestHeaders
 
-    RequestElement(new String(request.getUri), request.getMethod.toString, filteredRequestHeaders, requestBody, responseBody, response.getStatus.getCode, embeddedResources)
+    RequestElement(new String(request.uri), request.method.toString, filteredRequestHeaders, requestBody, responseBody, response.status.code, embeddedResources)
   }
 }
 
-private[recorder] case class RequestElement(uri: String,
-                                            method: String,
-                                            headers: Map[String, String],
-                                            body: Option[RequestBody],
-                                            responseBody: Option[ResponseBody],
-                                            statusCode: Int,
-                                            embeddedResources: List[EmbeddedResource],
-                                            nonEmbeddedResources: List[RequestElement] = Nil) extends ScenarioElement {
+private[recorder] case class RequestElement(
+    uri:                  String,
+    method:               String,
+    headers:              Map[String, String],
+    body:                 Option[RequestBody],
+    responseBody:         Option[ResponseBody],
+    statusCode:           Int,
+    embeddedResources:    List[EmbeddedResource],
+    nonEmbeddedResources: List[RequestElement]   = Nil
+) extends ScenarioElement {
 
   val (baseUrl, pathQuery) = {
     val uriComponents = Uri.create(uri)

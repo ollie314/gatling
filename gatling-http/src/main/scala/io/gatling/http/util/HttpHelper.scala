@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ import scala.util.control.NonFatal
 import io.gatling.core.session._
 import io.gatling.http.{ HeaderNames, HeaderValues }
 
-import org.asynchttpclient.{ FluentCaseInsensitiveStringsMap, Realm }
+import io.netty.handler.codec.http.HttpHeaders
+import org.asynchttpclient.Realm
 import org.asynchttpclient.Realm.AuthScheme
 import org.asynchttpclient.uri.Uri
 import com.typesafe.scalalogging.StrictLogging
@@ -34,9 +35,7 @@ import com.typesafe.scalalogging.StrictLogging
 object HttpHelper extends StrictLogging {
 
   val HttpScheme = "http"
-  val HttpsScheme = "https"
   val WsScheme = "ws"
-  val WssScheme = "wss"
   val OkCodes = Vector(200, 304, 201, 202, 203, 204, 205, 206, 207, 208, 209)
   val RedirectStatusCodes = Vector(301, 302, 303, 307, 308)
 
@@ -62,32 +61,32 @@ object HttpHelper extends StrictLogging {
   def buildNTLMAuthRealm(username: Expression[String], password: Expression[String], ntlmDomain: Expression[String], ntlmHost: Expression[String]) =
     buildRealm(username, password, AuthScheme.NTLM, preemptive = false, Some(ntlmDomain), Some(ntlmHost))
 
-  def buildRealm(username: Expression[String],
-                 password: Expression[String],
-                 authScheme: AuthScheme,
-                 preemptive: Boolean,
-                 ntlmDomain: Option[Expression[String]],
-                 ntlmHost: Option[Expression[String]]): Expression[Realm] =
+  def buildRealm(
+    username:   Expression[String],
+    password:   Expression[String],
+    authScheme: AuthScheme,
+    preemptive: Boolean,
+    ntlmDomain: Option[Expression[String]],
+    ntlmHost:   Option[Expression[String]]
+  ): Expression[Realm] =
     (session: Session) =>
       for {
         usernameValue <- username(session)
         passwordValue <- password(session)
         ntlmDomainValue <- resolveOptionalExpression(ntlmDomain, session)
         ntlmHostValue <- resolveOptionalExpression(ntlmHost, session)
-      } yield new Realm.RealmBuilder()
-        .setPrincipal(usernameValue)
-        .setPassword(passwordValue)
-        .setUsePreemptiveAuth(preemptive)
+      } yield new Realm.Builder(usernameValue, passwordValue)
         .setScheme(authScheme)
+        .setUsePreemptiveAuth(preemptive)
         .setNtlmDomain(ntlmDomainValue.orNull)
         .setNtlmHost(ntlmHostValue.orNull)
         .build
 
-  private def headerExists(headers: FluentCaseInsensitiveStringsMap, headerName: String, f: String => Boolean): Boolean = Option(headers.getFirstValue(headerName)).exists(f)
-  def isCss(headers: FluentCaseInsensitiveStringsMap): Boolean = headerExists(headers, HeaderNames.ContentType, _.contains(HeaderValues.TextCss))
-  def isHtml(headers: FluentCaseInsensitiveStringsMap): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains(HeaderValues.TextHtml) || ct.contains(HeaderValues.ApplicationXhtml))
-  def isAjax(headers: FluentCaseInsensitiveStringsMap): Boolean = headerExists(headers, HeaderNames.XRequestedWith, _.contains(HeaderValues.XmlHttpRequest))
-  def isTxt(headers: FluentCaseInsensitiveStringsMap): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains("text") || ct.contains("json") || ct.contains("javascript") || ct.contains("xml"))
+  private def headerExists(headers: HttpHeaders, headerName: String, f: String => Boolean): Boolean = Option(headers.get(headerName)).exists(f)
+  def isCss(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, _.contains(HeaderValues.TextCss))
+  def isHtml(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains(HeaderValues.TextHtml) || ct.contains(HeaderValues.ApplicationXhtml))
+  def isAjax(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.XRequestedWith, _.contains(HeaderValues.XmlHttpRequest))
+  def isTxt(headers: HttpHeaders): Boolean = headerExists(headers, HeaderNames.ContentType, ct => ct.contains("text") || ct.contains("json") || ct.contains("javascript") || ct.contains("xml"))
 
   def resolveFromUri(rootURI: Uri, relative: String): Uri =
     if (relative.startsWith("//"))
@@ -107,8 +106,6 @@ object HttpHelper extends StrictLogging {
   def isRedirect(statusCode: Int) = RedirectStatusCodes.contains(statusCode)
   def isPermanentRedirect(statusCode: Int): Boolean = statusCode == 301 || statusCode == 308
   def isNotModified(statusCode: Int) = statusCode == 304
-
-  def isSecure(uri: Uri) = uri.getScheme == HttpsScheme || uri.getScheme == WssScheme
 
   def isAbsoluteHttpUrl(url: String) = url.startsWith(HttpScheme)
   def isAbsoluteWsUrl(url: String) = url.startsWith(WsScheme)

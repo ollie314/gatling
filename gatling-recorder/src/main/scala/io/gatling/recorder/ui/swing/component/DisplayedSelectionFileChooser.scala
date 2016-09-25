@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,12 +34,13 @@ private[swing] case object Open extends ChooserType
 private[swing] case object Save extends ChooserType
 
 private[swing] class DisplayedSelectionFileChooser(
-  creator: Container,
+  creator:         Container,
   textFieldLength: Int,
-  chooserType: ChooserType,
-  buttonText: String = "Browse",
-  selectionMode: SelectionMode.Value = SelectionMode.FilesAndDirectories,
-  fileFilter: FileFilter = new AcceptAllFileFilter)
+  chooserType:     ChooserType,
+  buttonText:      String              = "Browse",
+  selectionMode:   SelectionMode.Value = SelectionMode.FilesAndDirectories,
+  fileFilter:      FileFilter          = new AcceptAllFileFilter
+)
     extends BoxPanel(Orientation.Horizontal) {
 
   val selectionDisplay = new TextField(textFieldLength)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,26 @@
 package io.gatling.core.assertion
 
 import io.gatling.BaseSpec
+import io.gatling.commons.stats._
+import io.gatling.commons.stats.assertion.{ AssertionValidator, Assertion }
+import io.gatling.commons.util.StringHelper._
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.message.{ KO, OK, Status }
-import io.gatling.core.stats.reader.{ GeneralStats, DataReader }
-import io.gatling.core.stats.{ Group, GroupStatsPath, RequestStatsPath }
-import io.gatling.core.util.StringHelper.RichString
 
 import org.mockito.Mockito.when
 
 class AssertionValidatorSpec extends BaseSpec with AssertionSupport {
 
   implicit val configuration = GatlingConfiguration.loadForTest()
-  val assertionValidator = new AssertionValidator
 
   private type Conditions = List[AssertionWithPathAndTarget => Assertion]
   private type StatsModifiers = List[Stats => Stats]
 
-  private case class Stats(generalStats: GeneralStats,
-                           requestName: String = "",
-                           groupPath: List[String] = Nil,
-                           status: Option[Status] = None) {
+  private case class Stats(
+      generalStats: GeneralStats,
+      requestName:  String         = "",
+      groupPath:    List[String]   = Nil,
+      status:       Option[Status] = None
+  ) {
 
     def request = requestName.trimToOption
     def group = if (groupPath.nonEmpty) Some(Group(groupPath)) else None
@@ -44,15 +44,17 @@ class AssertionValidatorSpec extends BaseSpec with AssertionSupport {
   private val SetRequestThenGroupModifiers: StatsModifiers =
     List(_.copy(requestName = "foo"), _.copy(groupPath = List("foo")))
 
-  private def mockDataReaderWithStats(metric: AssertionWithPathAndTarget,
-                                      conditions: Conditions,
-                                      stats: Stats*) = {
-      def mockAssertion(dataReader: DataReader) = when(dataReader.assertions) thenReturn conditions.map(_(metric))
+  private def mockDataReaderWithStats(
+    metric:     AssertionWithPathAndTarget,
+    conditions: Conditions,
+    stats:      Stats*
+  ) = {
+      def mockAssertion(source: GeneralStatsSource) = when(source.assertions) thenReturn conditions.map(_(metric))
 
-      def mockStats(stat: Stats, dataReader: DataReader) = {
-        when(dataReader.requestGeneralStats(stat.request, stat.group, stat.status)) thenReturn stat.generalStats
+      def mockStats(stat: Stats, source: GeneralStatsSource) = {
+        when(source.requestGeneralStats(stat.request, stat.group, stat.status)) thenReturn stat.generalStats
         stat.group.foreach { group =>
-          when(dataReader.groupCumulatedResponseTimeGeneralStats(group, stat.status)) thenReturn stat.generalStats
+          when(source.groupCumulatedResponseTimeGeneralStats(group, stat.status)) thenReturn stat.generalStats
         }
       }
 
@@ -62,20 +64,20 @@ class AssertionValidatorSpec extends BaseSpec with AssertionSupport {
         case _                      => throw new AssertionError("Can't have neither a request or group stats path")
       }.toList
 
-      def mockStatsPath(dataReader: DataReader) =
-        when(dataReader.statsPaths) thenReturn statsPaths
+      def mockStatsPath(source: GeneralStatsSource) =
+        when(source.statsPaths) thenReturn statsPaths
 
-    val mockedDataReader = mock[DataReader]
+    val mockedGeneralStatsSource = mock[GeneralStatsSource]
 
-    mockAssertion(mockedDataReader)
-    stats.foreach(mockStats(_, mockedDataReader))
-    mockStatsPath(mockedDataReader)
+    mockAssertion(mockedGeneralStatsSource)
+    stats.foreach(mockStats(_, mockedGeneralStatsSource))
+    mockStatsPath(mockedGeneralStatsSource)
 
-    mockedDataReader
+    mockedGeneralStatsSource
   }
 
-  private def validateAssertions(dataReader: DataReader) =
-    assertionValidator.validateAssertions(dataReader).map(_.result).forall(identity)
+  private def validateAssertions(source: GeneralStatsSource) =
+    AssertionValidator.validateAssertions(source).map(_.result).forall(identity)
 
   "AssertionValidator" should "fail the assertion when the request path does not exist" in {
     val requestStats = Stats(GeneralStats.NoPlot, requestName = "bar")

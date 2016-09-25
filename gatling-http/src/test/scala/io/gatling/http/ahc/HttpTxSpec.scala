@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,16 @@
 package io.gatling.http.ahc
 
 import io.gatling.BaseSpec
+import io.gatling.core.CoreComponents
+import io.gatling.core.action.Action
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
+import io.gatling.http.action.sync.HttpTx
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.protocol.{ HttpComponents, HttpProtocolRequestPart, HttpProtocol }
+import io.gatling.http.protocol.{ HttpComponents, HttpProtocol, HttpProtocolRequestPart }
 import io.gatling.http.request.{ HttpRequest, HttpRequestConfig }
 
+import akka.actor.ActorRef
 import org.asynchttpclient.Request
 import org.asynchttpclient.uri.Uri
 import org.mockito.Mockito._
@@ -31,8 +35,10 @@ class HttpTxSpec extends BaseSpec {
   implicit val configuration = GatlingConfiguration.loadForTest()
 
   trait Context {
-    val httpCaches = new HttpCaches
-    val httpComponents = HttpComponents(HttpProtocol(configuration), mock[HttpEngine], httpCaches)
+    val httpCaches = new HttpCaches(configuration)
+    val coreComponents = mock[CoreComponents]
+    when(coreComponents.configuration).thenReturn(configuration)
+    val httpComponents = HttpComponents(HttpProtocol(configuration), mock[HttpEngine], httpCaches, mock[ResponseProcessor])
     var session = Session("mockSession", 0)
 
     val configBase = HttpRequestConfig(
@@ -44,23 +50,25 @@ class HttpTxSpec extends BaseSpec {
       silent = None,
       followRedirect = false,
       discardResponseChunks = true,
+      coreComponents = coreComponents,
       httpComponents = httpComponents,
-      explicitResources = Nil)
-
-    def addRedirect(from: String, to: String): Unit =
-      session = httpCaches.addRedirect(session, Uri.create(from), Uri.create(to))
+      explicitResources = Nil
+    )
   }
 
   def tx(ahcRequest: Request, config: HttpRequestConfig, root: Boolean) =
-    HttpTx(null,
+    HttpTx(
+      null,
       request = HttpRequest(
         requestName = "mockHttpTx",
         ahcRequest = ahcRequest,
-        config = config),
+        config = config
+      ),
       responseBuilderFactory = null,
-      root = root,
-      next = null,
-      redirectCount = 0)
+      next = mock[Action],
+      resourceFetcher = if (root) None else Some(mock[ActorRef]),
+      redirectCount = 0
+    )
 
   "HttpTx" should "be silent when using default protocol and containing a request forced to silent" in new Context {
 

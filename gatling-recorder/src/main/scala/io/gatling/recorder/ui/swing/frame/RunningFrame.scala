@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,8 +165,8 @@ private[swing] class RunningFrame(frontend: RecorderFrontend) extends MainFrame 
    * @param requestInfo The outgoing request info
    */
   private def showRequest(requestInfo: RequestInfo): Unit = {
-    requestHeaders.textArea.text = requestInfo.request.toString
-    responseHeaders.textArea.text = requestInfo.response.toString
+    requestHeaders.textArea.text = requestInfo.request.summary
+    responseHeaders.textArea.text = requestInfo.response.summary
     requestBodies.textArea.text = requestInfo.requestBody
     responseBodies.textArea.text = requestInfo.responseBody
     infoPanels.foreach(_.preferredSize = newSize)

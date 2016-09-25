@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,23 @@
  */
 package io.gatling.core.stats.writer
 
-import io.gatling.core.assertion.Assertion
+import io.gatling.commons.stats.Status
+import io.gatling.commons.stats.assertion.Assertion
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
-import io.gatling.core.stats.message.{ Status, ResponseTimings, MessageEvent }
+import io.gatling.core.stats.message.{ ResponseTimings, MessageEvent }
 
-case class ShortScenarioDescription(name: String, totalUserEstimate: Int)
+case class ShortScenarioDescription(name: String, userCount: Int)
 
-case class RunMessage(simulationClassName: String,
-                      simulationId: String,
-                      start: Long,
-                      runDescription: String) {
+case class RunMessage(
+    simulationClassName:     String,
+    userDefinedSimulationId: Option[String],
+    defaultSimulationId:     String,
+    start:                   Long,
+    runDescription:          String
+) {
 
+  val simulationId = userDefinedSimulationId.getOrElse(defaultSimulationId)
   val runId = simulationId + "-" + start
 }
 
@@ -39,30 +44,33 @@ case object Stop extends DataWriterMessage
 sealed trait LoadEventMessage extends DataWriterMessage
 
 case class UserMessage(
-  session: Session,
-  event: MessageEvent,
-  date: Long) extends LoadEventMessage
+  session:   Session,
+  event:     MessageEvent,
+  timestamp: Long
+) extends LoadEventMessage
 
 case class ResponseMessage(
-  scenario: String,
-  userId: Long,
+  scenario:       String,
+  userId:         Long,
   groupHierarchy: List[String],
-  name: String,
-  timings: ResponseTimings,
-  status: Status,
-  responseCode: Option[String],
-  message: Option[String],
-  extraInfo: List[Any]) extends LoadEventMessage
+  name:           String,
+  timings:        ResponseTimings,
+  status:         Status,
+  responseCode:   Option[String],
+  message:        Option[String],
+  extraInfo:      List[Any]
+) extends LoadEventMessage
 
 case class GroupMessage(
-    scenario: String,
-    userId: Long,
-    groupHierarchy: List[String],
-    startDate: Long,
-    endDate: Long,
+    scenario:              String,
+    userId:                Long,
+    groupHierarchy:        List[String],
+    startTimestamp:        Long,
+    endTimestamp:          Long,
     cumulatedResponseTime: Int,
-    status: Status) extends LoadEventMessage {
-  val duration = (endDate - startDate).toInt
+    status:                Status
+) extends LoadEventMessage {
+  val duration = (endTimestamp - startTimestamp).toInt
 }
 
 case class ErrorMessage(message: String, date: Long) extends LoadEventMessage

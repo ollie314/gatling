@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ package io.gatling.core.check.extractor.regex
 import java.util.regex.Pattern
 
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.cache.SelfLoadingThreadSafeCache
+import io.gatling.core.util.cache.Cache
+
+import com.github.benmanes.caffeine.cache.LoadingCache
 
 class Patterns(implicit configuration: GatlingConfiguration) {
 
-  private val patternCache = SelfLoadingThreadSafeCache[String, Pattern](configuration.core.extract.regex.cacheMaxCapacity, Pattern.compile)
+  private val patternCache: LoadingCache[String, Pattern] =
+    Cache.newConcurrentLoadingCache(configuration.core.extract.regex.cacheMaxCapacity, Pattern.compile)
 
   def extractAll[G: GroupExtractor](chars: CharSequence, pattern: String): Seq[G] = {
 

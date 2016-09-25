@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
  */
 package io.gatling.http.request.builder.sse
 
+import io.gatling.core.CoreComponents
 import io.gatling.core.session._
 import io.gatling.http.{ HeaderValues, HeaderNames }
-import io.gatling.http.action.sse._
+import io.gatling.http.action.async.sse._
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.request.builder.{ RequestBuilder, CommonAttributes }
 
@@ -25,16 +26,16 @@ import org.asynchttpclient.Request
 
 object SseOpenRequestBuilder {
 
-  val SseHeaderValueExpression = HeaderValues.TextEventStream.expression
-  val CacheControlNoCacheValueExpression = HeaderValues.NoCache.expression
+  val SseHeaderValueExpression = HeaderValues.TextEventStream.expressionSuccess
+  val CacheControlNoCacheValueExpression = HeaderValues.NoCache.expressionSuccess
 
   def apply(requestName: Expression[String], url: Expression[String], sseName: String) =
     new SseOpenRequestBuilder(CommonAttributes(requestName, "GET", Left(url)), sseName)
       .header(HeaderNames.Accept, SseHeaderValueExpression)
       .header(HeaderNames.CacheControl, CacheControlNoCacheValueExpression)
 
-  implicit def toActionBuilder(requestBuilder: SseOpenRequestBuilder): SseOpenActionBuilder =
-    new SseOpenActionBuilder(requestBuilder.commonAttributes.requestName, requestBuilder.sseName, requestBuilder)
+  implicit def toActionBuilder(requestBuilder: SseOpenRequestBuilder): SseOpenBuilder =
+    new SseOpenBuilder(requestBuilder.commonAttributes.requestName, requestBuilder.sseName, requestBuilder)
 }
 
 case class SseOpenRequestBuilder(commonAttributes: CommonAttributes, sseName: String)
@@ -42,6 +43,6 @@ case class SseOpenRequestBuilder(commonAttributes: CommonAttributes, sseName: St
 
   override private[http] def newInstance(commonAttributes: CommonAttributes) = new SseOpenRequestBuilder(commonAttributes, sseName)
 
-  def build(httpComponents: HttpComponents): Expression[Request] =
-    new SseRequestExpressionBuilder(commonAttributes, httpComponents).build
+  def build(coreComponents: CoreComponents, httpComponents: HttpComponents): Expression[Request] =
+    new SseRequestExpressionBuilder(commonAttributes, coreComponents, httpComponents).build
 }

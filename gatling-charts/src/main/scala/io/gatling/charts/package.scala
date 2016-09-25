@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling
 import java.nio.charset.Charset
 import java.security.MessageDigest
 
-import io.gatling.core.util.StringHelper._
+import io.gatling.commons.util.StringHelper._
 
 package object charts {
 
@@ -29,7 +29,7 @@ package object charts {
      *
      * @return a simplified string
      */
-    def toFileName(charset: Charset) = {
+    private def toFileName(charset: Charset) = {
 
       val trimmed = string.trim match {
         case "" => "missing_name"
@@ -41,6 +41,8 @@ package object charts {
       trimmed.clean.take(15) + "-" + bytes2Hex(md.digest).take(5)
     }
 
-    def toRequestFileName(charset: Charset) = s"req_${toFileName(charset)}.html"
+    def toRequestFileName(charset: Charset) = s"req_${toFileName(charset)}"
+
+    def toGroupFileName(charset: Charset) = s"group_${toFileName(charset)}"
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,11 @@
  */
 package io.gatling.core.action.builder
 
-import io.gatling.core.action.ExitHereIfFailed
+import io.gatling.core.action.{ Action, ExitHereIfFailed }
 import io.gatling.core.structure.ScenarioContext
-
-import akka.actor.ActorRef
 
 object ExitHereIfFailedBuilder extends ActionBuilder {
 
-  def build(ctx: ScenarioContext, next: ActorRef) = {
-    import ctx._
-    system.actorOf(ExitHereIfFailed.props(coreComponents.exit, coreComponents.statsEngine, next), actorName("exitHereIfFailed"))
-  }
+  override def build(ctx: ScenarioContext, next: Action): Action =
+    new ExitHereIfFailed(ctx.coreComponents.exit, ctx.coreComponents.statsEngine, next)
 }

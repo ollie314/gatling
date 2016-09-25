@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package io.gatling.redis.util
 
 import java.nio.charset.StandardCharsets._
 
-import io.gatling.core.util.StringHelper.Crlf
+import io.gatling.commons.util.StringHelper.Crlf
 
 object RedisHelper {
 

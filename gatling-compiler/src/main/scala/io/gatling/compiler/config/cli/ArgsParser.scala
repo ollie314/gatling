@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,9 @@ import io.gatling.compiler.config.cli.CommandLineConstants._
 
 private[config] case class CommandLineOverrides(
   simulationsDirectory: String = "",
-  binariesFolder: String = "",
-  classpathElements: String = "")
+  binariesFolder:       String = "",
+  classpathElements:    String = ""
+)
 
 private[config] class ArgsParser(args: Array[String]) {
 

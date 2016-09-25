@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,13 @@
 package io.gatling.core.stats.writer
 
 import io.gatling.BaseSpec
-import io.gatling.core.stats.message.{ OK, ResponseTimings }
+import io.gatling.commons.stats.OK
+import io.gatling.core.stats.message.ResponseTimings
 
 class ResponseMessageSpec extends BaseSpec {
 
   "constructor" should "have sensible defaults for optional parameters" in {
-    val record: ResponseMessage = ResponseMessage("scenarioName", 0, Nil, "requestName", ResponseTimings(0L, 0L, 0L, 0L), OK, Some("200"), Some("requestMessage"), Nil)
+    val record: ResponseMessage = ResponseMessage("scenarioName", 0, Nil, "requestName", ResponseTimings(0L, 0L), OK, Some("200"), Some("requestMessage"), Nil)
 
     record.extraInfo shouldBe empty
   }

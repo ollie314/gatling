@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,12 @@
  */
 package io.gatling.http.cache
 
-import java.text.ParsePosition
-
-import io.gatling.core.util.NumberHelper._
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.http.{ HeaderValues, HeaderNames }
+import io.gatling.commons.util.NumberHelper._
+import io.gatling.commons.util.TimeHelper.unpreciseNowMillis
+import io.gatling.http.{ HeaderNames, HeaderValues }
 import io.gatling.http.response.Response
 
-import org.asynchttpclient.cookie.RFC2616DateParser
+import org.asynchttpclient.cookie.DateParser
 
 trait ExpiresSupport {
 
@@ -62,7 +60,7 @@ trait ExpiresSupport {
     // FIXME use offset instead of 2 substrings
     val trimmedTimeString = removeQuote(timestring.trim)
 
-    Option(RFC2616DateParser.get.parse(trimmedTimeString, new ParsePosition(0))).map(_.getTime)
+    Option(DateParser.parse(trimmedTimeString)).map(_.getTime)
   }
 
   def getResponseExpires(response: Response): Option[Long] = {
@@ -73,9 +71,9 @@ trait ExpiresSupport {
         if (maxAge < 0)
           maxAge
         else
-          maxAge * 1000 + nowMillis
+          maxAge * 1000 + unpreciseNowMillis
       }
-      def expiresValue = response.header(HeaderNames.Expires).flatMap(extractExpiresValue).filter(_ > nowMillis)
+      def expiresValue = response.header(HeaderNames.Expires).flatMap(extractExpiresValue).filter(_ > unpreciseNowMillis)
 
     if (pragmaNoCache || cacheControlNoCache) {
       None

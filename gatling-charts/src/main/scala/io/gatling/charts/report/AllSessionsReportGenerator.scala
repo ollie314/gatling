@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ private[charts] class AllSessionsReportGenerator(reportsGenerationInputs: Report
   def generate(): Unit = {
     import reportsGenerationInputs._
 
-    val series = new Series[IntVsTimePlot]("All Users", dataReader.numberOfActiveSessionsPerSecond(), List(Orange))
+    val series = new Series[IntVsTimePlot]("All Users", logFileReader.numberOfActiveSessionsPerSecond(None), List(Orange))
 
-    val javascript = componentLibrary.getAllUsersJs(dataReader.runStart, series)
+    val javascript = componentLibrary.getAllUsersJs(logFileReader.runStart, series)
 
     new TemplateWriter(allSessionsFile(reportFolderName)).writeToFile(javascript)
   }

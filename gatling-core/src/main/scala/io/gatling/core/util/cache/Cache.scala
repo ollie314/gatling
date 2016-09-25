@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,32 @@
  */
 package io.gatling.core.util.cache
 
+import java.util.concurrent.ConcurrentMap
+
 import scala.collection.immutable.Queue
 
+import com.github.benmanes.caffeine.cache.{ CacheLoader, Caffeine, LoadingCache }
+
 object Cache {
-  def apply[K, V](maxCapacity: Int) = new Cache[K, V](Queue.empty, Map.empty, maxCapacity)
+
+  def newConcurrentCache[K, V](maxSize: Long): ConcurrentMap[K, V] =
+    Caffeine
+      .newBuilder
+      .asInstanceOf[Caffeine[Any, Any]]
+      .maximumSize(maxSize)
+      .build[K, V]
+      .asMap
+
+  def newConcurrentLoadingCache[K, V](maxSize: Long, f: K => V): LoadingCache[K, V] =
+    Caffeine
+      .newBuilder
+      .asInstanceOf[Caffeine[Any, Any]]
+      .maximumSize(maxSize)
+      .build[K, V](new CacheLoader[K, V] {
+        override def load(key: K): V = f(key)
+      })
+
+  def newImmutableCache[K, V](maxCapacity: Int) = new Cache[K, V](Queue.empty, Map.empty, maxCapacity)
 }
 
 class Cache[K, V](queue: Queue[K], map: Map[K, V], maxCapacity: Int) {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import java.net.URL
 import java.nio.charset.Charset
 import java.nio.file.Path
 
-import io.gatling.core.config.{ GatlingConfiguration, GatlingFiles }
-import io.gatling.core.util.Io._
-import io.gatling.core.util.PathHelper._
-import io.gatling.core.validation.{ FailureWrapper, SuccessWrapper, Validation }
+import io.gatling.commons.util.Io._
+import io.gatling.commons.util.PathHelper._
+import io.gatling.commons.validation._
+import io.gatling.core.config.{ GatlingFiles, GatlingConfiguration }
 
 object Resource {
 
@@ -42,9 +42,14 @@ object Resource {
       }
   }
 
-  private object FileInFolderResource {
+  private object DirectoryChildResource {
     def unapply(location: Location): Option[Validation[Resource]] =
-      (location.directory / location.path).ifFile(f => FileResource(f).success)
+      (location.directory / location.path).ifFile { f =>
+        if (f.canRead)
+          FileResource(f).success
+        else
+          s"File $f can't be read".failure
+      }
   }
 
   private object AbsoluteFileResource {
@@ -52,31 +57,35 @@ object Resource {
       string2path(location.path).ifFile(f => FileResource(f).success)
   }
 
-  private def load(directory: Path, path: String): Validation[Resource] =
+  private def resolveResource(directory: Path, possibleClasspathPackage: String, path: String): Validation[Resource] =
     Location(directory, path) match {
-      case ClasspathResource(res)    => res
-      case FileInFolderResource(res) => res
-      case AbsoluteFileResource(res) => res
-      case _                         => s"file $path doesn't exist".failure
+      case ClasspathResource(res)      => res
+      case DirectoryChildResource(res) => res
+      case AbsoluteFileResource(res)   => res
+      case _ => Location(directory, possibleClasspathPackage + "/" + path) match {
+        case ClasspathResource(res) => res
+        case _                      => s"file $path doesn't exist".failure
+      }
     }
 
   private case class Location(directory: Path, path: String)
 
   def feeder(fileName: String)(implicit configuration: GatlingConfiguration): Validation[Resource] =
-    load(GatlingFiles.dataDirectory, fileName)
+    resolveResource(GatlingFiles.dataDirectory, "data", fileName)
   def body(fileName: String)(implicit configuration: GatlingConfiguration): Validation[Resource] =
-    load(GatlingFiles.bodiesDirectory, fileName)
+    resolveResource(GatlingFiles.bodiesDirectory, "bodies", fileName)
 }
 
 sealed trait Resource {
   def inputStream: InputStream
   def file: File
   def string(charset: Charset) = withCloseable(inputStream) { _.toString(charset) }
-  def bytes: Array[Byte] = Io.withCloseable(inputStream)(_.toByteArray())
+  def bytes: Array[Byte]
 }
 
 case class FileResource(file: File) extends Resource {
   def inputStream = new FileInputStream(file)
+  def bytes: Array[Byte] = file.toByteArray
 }
 
 case class ArchiveResource(url: URL, extension: String) extends Resource {
@@ -93,4 +102,6 @@ case class ArchiveResource(url: URL, extension: String) extends Resource {
     }
     tempFile
   }
+
+  def bytes: Array[Byte] = withCloseable(inputStream)(_.toByteArray())
 }

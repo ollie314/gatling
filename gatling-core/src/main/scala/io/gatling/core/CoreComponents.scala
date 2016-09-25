@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,17 @@
  */
 package io.gatling.core
 
+import io.gatling.core.action.Action
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.stats.StatsEngine
 
 import _root_.akka.actor.ActorRef
 
-case class CoreComponents(controller: ActorRef,
-                          throttler: Throttler,
-                          statsEngine: StatsEngine,
-                          exit: ActorRef)
+case class CoreComponents(
+  controller:    ActorRef,
+  throttler:     Throttler,
+  statsEngine:   StatsEngine,
+  exit:          Action,
+  configuration: GatlingConfiguration
+)

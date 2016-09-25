@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,8 @@ private[swing] object CharsetHelper extends StrictLogging {
     "ISO-8859-9" -> "Turkish Latin-5 (ISO-8859-9)",
     "windows-1254" -> "Turkish (Windows-1254)",
     "windows-1258" -> "Vietnamese (Windows-1258)",
-    "ISO-8859-15" -> "West European Latin-9 (ISO-8859-15)")
+    "ISO-8859-15" -> "West European Latin-9 (ISO-8859-15)"
+  )
     .filter {
       case (name, label) =>
         val supported = Charset.isSupported(name)

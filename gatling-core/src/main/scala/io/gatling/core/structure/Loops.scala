@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,19 +19,10 @@ import java.util.UUID
 
 import scala.concurrent.duration.Duration
 
+import io.gatling.commons.util.TimeHelper.nowMillis
 import io.gatling.core.action.builder._
-import io.gatling.core.session.{ Expression, ExpressionWrapper, Session }
+import io.gatling.core.session._
 import io.gatling.core.structure.ChainBuilder.chainOf
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.core.validation.SuccessWrapper
-
-object Loops {
-
-  val trueExpression: Expression[Boolean] = {
-    val trueSuccess = true.success
-    _ => trueSuccess
-  }
-}
 
 trait Loops[B] extends Execs[B] {
 
@@ -51,7 +42,7 @@ trait Loops[B] extends Execs[B] {
   }
 
   def during(duration: Duration, counterName: String = UUID.randomUUID.toString, exitASAP: Boolean = true)(chain: ChainBuilder): B =
-    during(duration.expression, counterName, exitASAP)(chain)
+    during(duration.expressionSuccess, counterName, exitASAP)(chain)
 
   def during(duration: Expression[Duration], counterName: String, exitASAP: Boolean)(chain: ChainBuilder): B = {
 
@@ -63,7 +54,7 @@ trait Loops[B] extends Execs[B] {
   def forever(chain: ChainBuilder): B = forever(UUID.randomUUID.toString, exitASAP = false)(chain)
 
   def forever(counterName: String = UUID.randomUUID.toString, exitASAP: Boolean = false)(chain: ChainBuilder): B =
-    asLongAs(Loops.trueExpression, counterName, exitASAP, ForeverLoopType)(chain)
+    asLongAs(TrueExpressionSuccess, counterName, exitASAP, ForeverLoopType)(chain)
 
   def asLongAs(condition: Expression[Boolean], counterName: String = UUID.randomUUID.toString, exitASAP: Boolean = false, loopType: LoopType = AsLongAsLoopType)(chain: ChainBuilder): B =
     exec(new LoopBuilder(condition, chain, counterName, exitASAP, loopType))

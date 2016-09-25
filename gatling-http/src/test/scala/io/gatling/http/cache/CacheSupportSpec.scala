@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,20 +20,21 @@ import java.nio.charset.StandardCharsets._
 import io.gatling.BaseSpec
 import io.gatling.core.session.Session
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.http.ahc.HttpEngine
+import io.gatling.http.ahc.{ AhcRequestBuilder, HttpEngine }
 import io.gatling.core.stats.message.ResponseTimings
 import io.gatling.http.{ MockUtils, HeaderNames, HeaderValues }
 import io.gatling.http.response.{ HttpResponse, ResponseBody }
 
+import io.netty.handler.codec.http.DefaultHttpHeaders
 import org.asynchttpclient._
 import org.asynchttpclient.uri.Uri
 
 class CacheSupportSpec extends BaseSpec {
 
   // Default config
-  implicit val configuration = GatlingConfiguration.loadForTest()
-  implicit val httpCaches = new HttpCaches
-  implicit val httpEngine = mock[HttpEngine]
+  val configuration = GatlingConfiguration.loadForTest()
+  val httpCaches = new HttpCaches(configuration)
+  val httpEngine = mock[HttpEngine]
 
   class CacheContext {
 
@@ -42,9 +43,9 @@ class CacheSupportSpec extends BaseSpec {
     def getResponseExpire(headers: Seq[(String, String)]) = {
       val status = mock[HttpResponseStatus]
       val body = mock[ResponseBody]
-      val headersMap = new FluentCaseInsensitiveStringsMap
+      val headersMap = new DefaultHttpHeaders
       headers.foreach { case (headerName, headerValue) => headersMap.add(headerName, headerValue) }
-      val response = HttpResponse(request, None, None, Some(status), headersMap, body, Map.empty, 0, UTF_8, ResponseTimings(-1, -1, -1, -1))
+      val response = HttpResponse(request, None, Some(status), headersMap, body, Map.empty, 0, UTF_8, ResponseTimings(-1, -1))
 
       httpCaches.getResponseExpires(response)
     }
@@ -64,7 +65,7 @@ class CacheSupportSpec extends BaseSpec {
   }
 
   it should "correctly support Expires header" in new CacheContext {
-    getResponseExpire(List(HeaderNames.Expires -> "Wed, 16 Oct 2033 21:56:44 GMT")) shouldBe 'defined
+    getResponseExpire(List(HeaderNames.Expires -> "Sun, 16 Oct 2033 21:56:44 GMT")) shouldBe 'defined
   }
 
   it should "give priority to Cache-Control over Expires" in new CacheContext {
@@ -102,8 +103,10 @@ class CacheSupportSpec extends BaseSpec {
   class RedirectContext {
     var session = Session("mockSession", 0)
 
-    def addRedirect(from: String, to: String): Unit =
-      session = httpCaches.addRedirect(session, Uri.create(from), Uri.create(to))
+    def addRedirect(from: String, to: String): Unit = {
+      val request = new AhcRequestBuilder("GET", true).setUrl(from).build
+      session = httpCaches.addRedirect(session, request, Uri.create(to))
+    }
   }
 
   "redirect memoization" should "return transaction with no redirect cache" in new RedirectContext {

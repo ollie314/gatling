@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,16 @@
  */
 package io.gatling.http.request.builder.ws
 
-import io.gatling.core.validation.{ FailureWrapper, SuccessWrapper, Validation }
+import io.gatling.commons.validation.Validation
+import io.gatling.core.CoreComponents
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.request.builder.{ RequestExpressionBuilder, CommonAttributes }
-import io.gatling.http.util.HttpHelper
 
-class WsRequestExpressionBuilder(commonAttributes: CommonAttributes, httpComponents: HttpComponents)
-    extends RequestExpressionBuilder(commonAttributes, httpComponents) {
+import org.asynchttpclient.uri.Uri
 
-  def makeAbsolute(url: String): Validation[String] =
-    if (HttpHelper.isAbsoluteWsUrl(url))
-      url.success
-    else
-      protocol.wsPart.wsBaseURL match {
-        case Some(baseURL) => (baseURL + url).success
-        case _             => s"No protocol.baseURL defined but provided url is relative : $url".failure
-      }
+class WsRequestExpressionBuilder(commonAttributes: CommonAttributes, coreComponents: CoreComponents, httpComponents: HttpComponents)
+    extends RequestExpressionBuilder(commonAttributes, coreComponents, httpComponents) {
+
+  override def makeAbsolute(url: String): Validation[Uri] =
+    protocol.wsPart.makeAbsoluteWsUri(url)
 }

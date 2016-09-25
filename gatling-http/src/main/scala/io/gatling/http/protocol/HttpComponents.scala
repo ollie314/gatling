@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,26 +17,19 @@ package io.gatling.http.protocol
 
 import io.gatling.core.protocol.ProtocolComponents
 import io.gatling.core.session.Session
-import io.gatling.http.ahc.HttpEngine
+import io.gatling.http.ahc.{ AhcChannelPoolPartitionSelector, HttpEngine, ResponseProcessor }
 import io.gatling.http.cache.HttpCaches
 
-import org.asynchttpclient.netty.NettyAsyncHttpProvider
-import org.asynchttpclient.netty.channel.pool.ChannelPoolPartitionSelector
+import org.asynchttpclient.DefaultAsyncHttpClient
 
-case class HttpComponents(httpProtocol: HttpProtocol, httpEngine: HttpEngine, httpCaches: HttpCaches) extends ProtocolComponents {
+case class HttpComponents(httpProtocol: HttpProtocol, httpEngine: HttpEngine, httpCaches: HttpCaches, responseProcessor: ResponseProcessor) extends ProtocolComponents {
 
   private val onExitF: Session => Unit = session => {
-    val (_, ahc) = httpEngine.httpClient(session, httpProtocol)
-    ahc.getProvider.asInstanceOf[NettyAsyncHttpProvider].flushChannelPoolPartitions(new ChannelPoolPartitionSelector() {
-
-      val userId = session.userId
-
-      override def select(partitionKey: Object): Boolean = partitionKey match {
-        case (`userId`, _) => true
-        case _             => false
-      }
-    })
+    val (_, ahc: DefaultAsyncHttpClient) = httpEngine.httpClient(session, httpProtocol)
+    ahc.getChannelPool.flushPartitions(new AhcChannelPoolPartitionSelector(session.userId))
   }
+
+  def onStart: Option[Session => Session] = Some(httpCaches.setNameResolver(httpProtocol, httpEngine) andThen httpCaches.setLocalAddress(httpProtocol))
 
   def onExit: Option[Session => Unit] = Some(onExitF)
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ package io.gatling.core.funspec
 
 import io.gatling.core.Predef._
 import io.gatling.core.action.builder.ActionBuilder
+import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.protocol.Protocol
 import io.gatling.core.structure.ChainBuilder
 
@@ -42,8 +43,8 @@ abstract class GatlingFunSpec extends Simulation {
       .assertions(forAll.failedRequests.percent.is(0))
   }
 
-  private[gatling] override def params = {
+  private[gatling] override def params(configuration: GatlingConfiguration) = {
     setupRegisteredSpecs()
-    super.params
+    super.params(configuration)
   }
 }

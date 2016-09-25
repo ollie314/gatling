@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ class TestJmsDsl extends Simulation {
       .queue("jmstestq")
       .textMessage("hello from gatling jms dsl")
       .property("test_header", "test_value")
+      .jmsType("test_jms_type")
       .check(simpleCheck(checkBodyTextCorrect))
     )
   }

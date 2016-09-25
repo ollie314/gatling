@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,12 @@ package io.gatling.core.action
 
 import scala.concurrent.duration.{ Duration, DurationLong }
 
-import io.gatling.core.stats.StatsEngine
-
-import akka.actor.{ Props, ActorRef }
+import io.gatling.commons.util.TimeHelper.nowMillis
 import io.gatling.core.session.{ Expression, Session }
-import io.gatling.core.util.TimeHelper.nowMillis
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.util.NameGen
 
-object Pace {
-  def props(intervalExpr: Expression[Duration], counter: String, statsEngine: StatsEngine, next: ActorRef) =
-    Props(new Pace(intervalExpr, counter, statsEngine, next))
-}
+import akka.actor.ActorSystem
 
 /**
  * Pace provides a means to limit the frequency with which an action is run, by specifying a minimum wait time between iterations.
@@ -39,22 +35,28 @@ object Pace {
  * @param statsEngine the StatsEngine
  * @param next the next actor in the chain
  */
-class Pace(intervalExpr: Expression[Duration], counter: String, val statsEngine: StatsEngine, val next: ActorRef) extends Interruptable with Failable {
+class Pace(intervalExpr: Expression[Duration], counter: String, system: ActorSystem, val statsEngine: StatsEngine, val next: Action) extends ExitableAction with NameGen {
+
+  import system._
+
+  override val name = genName("pace")
 
   /**
    * Pace keeps track of when it can next run using a counter in the session. If this counter does not exist, it will
    * run immediately. On each run, it increments the counter by intervalExpr.
    *
    * @param session the session of the virtual user
-   * @return Nothing
+   * @return nothing
    */
-  override def executeOrFail(session: Session) = {
+  override def execute(session: Session): Unit = recover(session) {
     intervalExpr(session) map { interval =>
       val startTimeOpt = session(counter).asOption[Long]
       val startTime = startTimeOpt.getOrElse(nowMillis)
       val nextStartTime = startTime + interval.toMillis
       val waitTime = startTime - nowMillis
+
         def doNext() = next ! session.set(counter, nextStartTime)
+
       if (waitTime > 0) {
         scheduler.scheduleOnce(waitTime milliseconds)(doNext())
       } else {

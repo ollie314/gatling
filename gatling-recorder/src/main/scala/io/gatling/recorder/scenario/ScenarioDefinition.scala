@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,12 @@ package io.gatling.recorder.scenario
 
 import scala.concurrent.duration.{ Duration, DurationLong }
 
-import com.typesafe.scalalogging.StrictLogging
-
 import io.gatling.http.util.HttpHelper
 import io.gatling.recorder.config.RecorderConfiguration
 import io.gatling.recorder.util.collection.RichSeq
+
+import com.softwaremill.quicklens._
+import com.typesafe.scalalogging.StrictLogging
 
 private[recorder] case class ScenarioDefinition(elements: Seq[ScenarioElement]) {
   def isEmpty = elements.isEmpty
@@ -68,11 +69,12 @@ private[recorder] object ScenarioDefinition extends StrictLogging {
     groupChainedRequests.map {
       case List(request) => request
       case mainRequest :: resources =>
-        val arrivalTime = resources.map(_.arrivalTime).max
 
         // TODO NRE : are we sure they are both absolute URLs?
         val nonEmbeddedResources = resources.filterNot(request => mainRequest.element.embeddedResources.exists(_.url == request.element.uri)).map(_.element)
-        mainRequest.copy(arrivalTime = arrivalTime, element = mainRequest.element.copy(nonEmbeddedResources = nonEmbeddedResources))
+        mainRequest
+          .modify(_.arrivalTime).setTo(resources.map(_.arrivalTime).max)
+          .modify(_.element.nonEmbeddedResources).setTo(nonEmbeddedResources)
     }
   }
 

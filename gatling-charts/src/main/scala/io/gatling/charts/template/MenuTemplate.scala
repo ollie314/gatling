@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import io.gatling.charts.report.Container.{ Group, Request }
 private[charts] class MenuTemplate {
   def getOutput: Fastring = fast"""	
 function getItemLink(item){
-	return 'req_' + item.pathFormatted + '.html';
+	return item.pathFormatted + '.html';
 }
 
 function setDetailsLinkUrl(){

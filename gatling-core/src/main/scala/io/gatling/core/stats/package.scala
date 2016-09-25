@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,17 +31,16 @@ case class PercentVsTimePlot(time: Int, value: Double) {
   def roundedUpValue: Double = (value * 100).toInt / 100.0
 }
 case class PieSlice(name: String, value: Double)
-case class ErrorStats(message: String, count: Int, totalCount: Int) {
-  def percentage = count * 100.0 / totalCount
-}
 case class PercentilesVsTimePlot(time: Int, percentiles: Option[Percentiles])
-case class Percentiles(percentile0: Int,
-                       percentile25: Int,
-                       percentile50: Int,
-                       percentile75: Int,
-                       percentile80: Int,
-                       percentile85: Int,
-                       percentile90: Int,
-                       percentile95: Int,
-                       percentile99: Int,
-                       percentile100: Int)
+case class Percentiles(
+  percentile0:   Int,
+  percentile25:  Int,
+  percentile50:  Int,
+  percentile75:  Int,
+  percentile80:  Int,
+  percentile85:  Int,
+  percentile90:  Int,
+  percentile95:  Int,
+  percentile99:  Int,
+  percentile100: Int
+)

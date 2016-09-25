@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package io.gatling.core.check.extractor.xpath
 
 import java.io.StringReader
 import javax.xml.namespace.NamespaceContext
-import javax.xml.parsers.{ ParserConfigurationException, DocumentBuilder, DocumentBuilderFactory }
+import javax.xml.parsers.{ DocumentBuilder, DocumentBuilderFactory }
 import javax.xml.xpath.XPathConstants._
 import javax.xml.xpath.XPathFactory
 
@@ -89,8 +89,8 @@ class JdkXmlParsers(implicit configuration: GatlingConfiguration) {
 
     (for {
       i <- 0 until nodes.getLength
-      item = nodes.item(i)
     } yield {
+      val item = nodes.item(i)
       item.getNodeType match {
         case Node.ELEMENT_NODE if item.getChildNodes.getLength > 0 =>
           val firstChild = item.getChildNodes.item(0)

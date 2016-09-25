@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,14 @@
  */
 package io.gatling.core.action
 
-import io.gatling.core.stats.StatsEngine
-
-import akka.actor.{ Props, ActorRef }
+import io.gatling.commons.util.TimeHelper.nowMillis
 import io.gatling.core.session.{ GroupBlock, Session }
-import io.gatling.core.util.TimeHelper.nowMillis
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.util.NameGen
 
-object GroupEnd {
-  def props(statsEngine: StatsEngine, next: ActorRef) =
-    Props(new GroupEnd(statsEngine, next))
-}
+class GroupEnd(statsEngine: StatsEngine, val next: Action) extends ChainableAction with NameGen {
 
-class GroupEnd(statsEngine: StatsEngine, val next: ActorRef) extends Chainable {
+  val name: String = genName("groupEnd")
 
   def execute(session: Session): Unit =
     session.blockStack match {

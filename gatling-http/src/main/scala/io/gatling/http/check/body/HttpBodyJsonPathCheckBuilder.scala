@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import io.gatling.core.check.extractor.jsonpath._
 import io.gatling.core.json.JsonParsers
 import io.gatling.core.session.{ Expression, RichExpression }
 import io.gatling.http.check.{ HttpCheck, HttpCheckBuilders }
-import io.gatling.http.response.{ ByteArrayResponseBodyUsage, InputStreamResponseBodyUsage, Response, ResponseBodyUsageStrategy, StringResponseBodyUsage }
+import io.gatling.http.response.{ InputStreamResponseBodyUsage, Response, ResponseBodyUsageStrategy, StringResponseBodyUsage }
 
 trait HttpBodyJsonPathOfType {
   self: HttpBodyJsonPathCheckBuilder[String] =>
@@ -30,7 +30,7 @@ trait HttpBodyJsonPathOfType {
 
 object HttpBodyJsonPathCheckBuilder {
 
-  val CharsParsingThreshold = 1000000
+  val CharsParsingThreshold = 200 * 1000
 
   def preparer(jsonParsers: JsonParsers): Preparer[Response, Any] =
     response => {
@@ -50,10 +50,7 @@ object HttpBodyJsonPathCheckBuilder {
 
   val JacksonResponseBodyUsageStrategy = new ResponseBodyUsageStrategy {
     def bodyUsage(bodyLength: Int) =
-      if (bodyLength <= CharsParsingThreshold)
-        ByteArrayResponseBodyUsage
-      else
-        InputStreamResponseBodyUsage
+      InputStreamResponseBodyUsage
   }
 
   def responseBodyUsageStrategy(jsonParsers: JsonParsers) =
@@ -64,11 +61,14 @@ object HttpBodyJsonPathCheckBuilder {
     new HttpBodyJsonPathCheckBuilder[String](path, jsonParsers) with HttpBodyJsonPathOfType
 }
 
-class HttpBodyJsonPathCheckBuilder[X: JsonFilter](private[body] val path: Expression[String],
-                                                  private[body] val jsonParsers: JsonParsers)(implicit extractorFactory: JsonPathExtractorFactory)
+class HttpBodyJsonPathCheckBuilder[X: JsonFilter](
+  private[body] val path:        Expression[String],
+  private[body] val jsonParsers: JsonParsers
+)(implicit extractorFactory: JsonPathExtractorFactory)
     extends DefaultMultipleFindCheckBuilder[HttpCheck, Response, Any, X](
       HttpCheckBuilders.bodyExtender(HttpBodyJsonPathCheckBuilder.responseBodyUsageStrategy(jsonParsers)),
-      HttpBodyJsonPathCheckBuilder.preparer(jsonParsers)) {
+      HttpBodyJsonPathCheckBuilder.preparer(jsonParsers)
+    ) {
 
   import extractorFactory._
 

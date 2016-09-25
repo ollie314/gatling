@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,21 @@
  */
 package io.gatling.http.request
 
-import java.io.File
 import java.nio.charset.Charset
 
-import io.gatling.core.body.{ ElFileBodies, RawFileBodies }
+import io.gatling.commons.util.Io._
+import io.gatling.commons.validation.Validation
+import io.gatling.core.body.{ FileWithCachedBytes, ElFileBodies, RawFileBodies }
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session._
-import io.gatling.core.util.Io._
-import io.gatling.core.validation.Validation
 
+import com.softwaremill.quicklens._
 import org.asynchttpclient.request.body.multipart.{ ByteArrayPart, FilePart, Part, PartBase, StringPart }
 
 object BodyPart {
 
   def rawFileBodyPart(name: Option[Expression[String]], filePath: Expression[String])(implicit rawFileBodies: RawFileBodies): BodyPart =
-    byteArrayBodyPart(name, rawFileBodies.asBytes(filePath)).fileName(rawFileBodies.asFile(filePath).map(_.getName))
+    BodyPart(name, fileBodyPartBuilder(rawFileBodies.asFileWithCachedBytes(filePath)), BodyPartAttributes())
 
   def elFileBodyPart(name: Option[Expression[String]], filePath: Expression[String])(implicit configuration: GatlingConfiguration, elFileBodies: ElFileBodies): BodyPart =
     stringBodyPart(name, elFileBodies.asString(filePath))
@@ -52,38 +52,42 @@ object BodyPart {
       new ByteArrayPart(name, resolvedBytes, contentType.orNull, charset.orNull, fileName.orNull, contentId.orNull, transferEncoding.orNull)
     }
 
-  // FIXME should we, depending on file size, go with either in memory or file streaming?
-  private def fileBodyPartBuilder(file: Expression[File])(name: String, contentType: Option[String], charset: Option[Charset], fileName: Option[String], contentId: Option[String], transferEncoding: Option[String]): Expression[PartBase] =
+  private def fileBodyPartBuilder(file: Expression[FileWithCachedBytes])(name: String, contentType: Option[String], charset: Option[Charset], fileName: Option[String], contentId: Option[String], transferEncoding: Option[String]): Expression[PartBase] =
     session => for {
       resolvedFile <- file(session)
-      validatedFile <- resolvedFile.validateExistingReadable
-    } yield new FilePart(name, validatedFile, contentType.orNull, charset.orNull, fileName.orNull, contentId.orNull, transferEncoding.orNull)
+      validatedFile <- resolvedFile.file.validateExistingReadable
+    } yield resolvedFile.cachedBytes match {
+      case Some(bytes) => new ByteArrayPart(name, bytes, contentType.orNull, charset.orNull, fileName.getOrElse(validatedFile.getName), contentId.orNull, transferEncoding.orNull)
+      case None        => new FilePart(name, validatedFile, contentType.orNull, charset.orNull, fileName.getOrElse(validatedFile.getName), contentId.orNull, transferEncoding.orNull)
+    }
 }
 
 case class BodyPartAttributes(
-    contentType: Option[Expression[String]] = None,
-    charset: Option[Charset] = None,
-    dispositionType: Option[Expression[String]] = None,
-    fileName: Option[Expression[String]] = None,
-    contentId: Option[Expression[String]] = None,
-    transferEncoding: Option[String] = None,
-    customHeaders: List[(String, Expression[String])] = Nil) {
+    contentType:      Option[Expression[String]]         = None,
+    charset:          Option[Charset]                    = None,
+    dispositionType:  Option[Expression[String]]         = None,
+    fileName:         Option[Expression[String]]         = None,
+    contentId:        Option[Expression[String]]         = None,
+    transferEncoding: Option[String]                     = None,
+    customHeaders:    List[(String, Expression[String])] = Nil
+) {
 
   lazy val customHeadersExpression: Expression[Seq[(String, String)]] = resolveIterable(customHeaders)
 }
 
 case class BodyPart(
-    name: Option[Expression[String]],
+    name:        Option[Expression[String]],
     partBuilder: (String, Option[String], Option[Charset], Option[String], Option[String], Option[String]) => Expression[PartBase], // name, fileName
-    attributes: BodyPartAttributes) {
+    attributes:  BodyPartAttributes
+) {
 
-  def contentType(contentType: Expression[String]) = copy(attributes = attributes.copy(contentType = Some(contentType)))
-  def charset(charset: String) = copy(attributes = attributes.copy(charset = Some(Charset.forName(charset))))
-  def dispositionType(dispositionType: Expression[String]) = copy(attributes = attributes.copy(dispositionType = Some(dispositionType)))
-  def fileName(fileName: Expression[String]) = copy(attributes = attributes.copy(fileName = Some(fileName)))
-  def contentId(contentId: Expression[String]) = copy(attributes = attributes.copy(contentId = Some(contentId)))
-  def transferEncoding(transferEncoding: String) = copy(attributes = attributes.copy(transferEncoding = Some(transferEncoding)))
-  def header(name: String, value: Expression[String]) = copy(attributes = attributes.copy(customHeaders = attributes.customHeaders ::: List(name -> value)))
+  def contentType(contentType: Expression[String]) = this.modify(_.attributes.contentType).setTo(Some(contentType))
+  def charset(charset: String) = this.modify(_.attributes.charset).setTo(Some(Charset.forName(charset)))
+  def dispositionType(dispositionType: Expression[String]) = this.modify(_.attributes.dispositionType).setTo(Some(dispositionType))
+  def fileName(fileName: Expression[String]) = this.modify(_.attributes.fileName).setTo(Some(fileName))
+  def contentId(contentId: Expression[String]) = this.modify(_.attributes.contentId).setTo(Some(contentId))
+  def transferEncoding(transferEncoding: String) = this.modify(_.attributes.transferEncoding).setTo(Some(transferEncoding))
+  def header(name: String, value: Expression[String]) = this.modify(_.attributes.customHeaders).using(_ ::: List(name -> value))
 
   def toMultiPart(session: Session): Validation[Part] =
     for {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ package io.gatling.core.controller.inject
 
 import scala.concurrent.duration.FiniteDuration
 
+import io.gatling.commons.util.Collections._
+
 /**
  * This class represents the configuration of a scenario
  *
  * @param injectionSteps the number of users that will behave as this scenario says
  */
 case class InjectionProfile(injectionSteps: Iterable[InjectionStep]) {
-  val totalUserEstimate = injectionSteps.map(_.totalUserEstimate).sum
-  val allUsers = injectionSteps.foldRight(Iterator.empty: Iterator[FiniteDuration]) { (step, iterator) => step.chain(iterator) }
+  def userCount: Int = injectionSteps.sumBy(_.users)
+  def allUsers: Iterator[FiniteDuration] = injectionSteps.foldRight(Iterator.empty: Iterator[FiniteDuration]) { (step, iterator) => step.chain(iterator) }
 }

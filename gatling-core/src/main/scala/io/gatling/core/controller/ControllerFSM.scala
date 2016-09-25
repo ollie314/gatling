@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,38 +15,37 @@
  */
 package io.gatling.core.controller
 
-import scala.concurrent.duration.FiniteDuration
-
-import io.gatling.core.controller.inject.Injector
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.akka.BaseActor
 
 import akka.actor.{ ActorRef, FSM }
 
-private[controller] case class UserStream(scenario: Scenario, stream: Iterator[FiniteDuration])
-
 private[controller] trait ControllerFSM extends BaseActor with FSM[ControllerState, ControllerData]
 
 private[controller] sealed trait ControllerState
-private[controller] case object WaitingToStart extends ControllerState
-private[controller] case object Started extends ControllerState
-private[controller] case object WaitingForResourcesToStop extends ControllerState
-private[controller] case object Stopped extends ControllerState
+private[controller] object ControllerState {
+  case object WaitingToStart extends ControllerState
+  case object Started extends ControllerState
+  case object WaitingForResourcesToStop extends ControllerState
+  case object Stopped extends ControllerState
+}
+
+private[controller] class UserCounts(var completed: Long, var expected: Long) {
+  def allStopped: Boolean = expected > 0 && completed == expected
+}
 
 private[controller] sealed trait ControllerData
-private[controller] case object NoData extends ControllerData
-private[controller] case class InitData(launcher: ActorRef, scenarios: List[Scenario])
-private[controller] class StartedData(
-  val initData: InitData,
-  val injector: Injector,
-  var completedUsersCount: Long,
-  var expectedUsersCount: Long) extends ControllerData
-private[controller] case class EndData(
-  initData: InitData,
-  exception: Option[Exception]) extends ControllerData
+private[controller] object ControllerData {
+  case object NoData extends ControllerData
+  case class InitData(launcher: ActorRef, scenarios: List[Scenario])
+  case class StartedData(initData: InitData, userCounts: UserCounts) extends ControllerData
+  case class EndData(initData: InitData, exception: Option[Throwable]) extends ControllerData
+}
 
-sealed trait ControllerMessage
-case class Start(scenarios: List[Scenario]) extends ControllerMessage
-case class ForceStop(e: Option[Exception] = None) extends ControllerMessage
-case object StatsEngineStopped extends ControllerMessage
-case object ScheduleNextInjection extends ControllerMessage
+sealed trait ControllerCommand
+object ControllerCommand {
+  case class Start(scenarios: List[Scenario]) extends ControllerCommand
+  case class InjectionStopped(count: Long) extends ControllerCommand
+  case class ForceStop(e: Option[Throwable] = None) extends ControllerCommand
+  case object StatsEngineStopped extends ControllerCommand
+}

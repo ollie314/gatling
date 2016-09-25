@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,16 @@ package io.gatling.jms.check
 
 import scala.collection.mutable
 
-import io.gatling.BaseSpec
+import io.gatling.{ ValidationValues, BaseSpec }
+import io.gatling.commons.validation._
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.{ ValidationValues, CoreDsl }
-import io.gatling.core.validation._
+import io.gatling.core.CoreDsl
 import io.gatling.core.session.Session
 import io.gatling.jms.{ MockMessage, JmsCheck }
 
 class JmsXPathCheckSpec extends BaseSpec with ValidationValues with MockMessage with CoreDsl with JmsCheckSupport {
 
-  implicit val configuration = GatlingConfiguration.loadForTest()
+  val configuration = GatlingConfiguration.loadForTest()
   implicit def cache = mutable.Map.empty[Any, Any]
 
   val session = Session("mockSession", 0)

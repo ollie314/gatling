@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import akka.testkit._
 import io.gatling.AkkaSpec
 import io.gatling.core.session.Session
 import io.gatling.core.session.el.El
-import io.gatling.core.stats.DefaultStatsEngine
+import io.gatling.core.stats.DataWritersStatsEngine
 
 class IfSpec extends AkkaSpec {
 
@@ -31,9 +31,9 @@ class IfSpec extends AkkaSpec {
     val thenActorProbe = TestProbe()
     val elseActorProbe = TestProbe()
     val dataWriterProbe = TestProbe()
-    val statsEngine = new DefaultStatsEngine(system, List(dataWriterProbe.ref))
+    val statsEngine = new DataWritersStatsEngine(system, List(dataWriterProbe.ref))
 
-    val ifAction = TestActorRef(If.props(condition, thenActorProbe.ref, elseActorProbe.ref, statsEngine, self))
+    val ifAction = new If(condition, new ActorDelegatingAction("ifChain", thenActorProbe.ref), new ActorDelegatingAction("elseChain", elseActorProbe.ref), statsEngine, new ActorDelegatingAction("next", self))
 
     val sessionWithTrueCondition = baseSession.set("condition", true)
     ifAction ! sessionWithTrueCondition

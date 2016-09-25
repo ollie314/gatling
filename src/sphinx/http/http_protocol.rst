@@ -53,7 +53,7 @@ Automatic warm up
 -----------------
 
 The Java/NIO engine start up introduces an overhead on the first request to be executed.
-In order to compensate this effect, Gatling automatically performs a request to http://gatling-tool.org.
+In order to compensate this effect, Gatling automatically performs a request to http://gatling.io.
 
 To disable this feature, just add ``.disableWarmUp`` to an HTTP Protocol Configuration definition.
 To change the warm up url, just add ``.warmUp("newUrl")``.
@@ -68,7 +68,9 @@ Engine parameters
 Max connection per host
 -----------------------
 
-In order to mimic real web browser, you can configure the max concurrent connections per host **per virtual user**  with ``maxConnectionsPerHost(max: Int)``.
+In order to mimic real web browser, Gatling can run multiple concurrent connections **per virtual user** when fetching resources on the same hosts.
+By default, Gatling caps the number of concurrent connections per remote host per virtual user to 6, but you can change this number with ``maxConnectionsPerHost(max: Int)``.
+
 Gatling ships a bunch of built-ins for well-known browsers:
 
 * ``maxConnectionsPerHostLikeFirefoxOld``
@@ -103,13 +105,29 @@ HTTP Client Sharing
 If you need more isolation of your user, for instance if you need a dedicated key store per user,
 Gatling lets you have an instance of the HTTP client per user with ``.disableClientSharing``.
 
-.. _http-protocol-dns-sharing:
+.. _http-protocol-hostname-resolution:
 
-DNS Cache Sharing
+Hostname Resolution
+-------------------
+
+By default, Gatling uses Java's name resolution, meaning that it uses a cache shared amongst all virtual users.
+This cache can be disabled with ``-Dsun.net.inetaddr.ttl=0``.
+
+One can change this behaviour and set ``.perUserNameResolution`` so all virtual users resolve names on their own.
+This feature is experimental, but might become the default in future versions.
+
+This feature is pretty useful if you're dealing with an elastic cluster where new IPs are added to the DNS server under load,
+for example with AWS Elastic Load Balancer (ELB).
+
+.. _http-protocol-hostname-aliasing:
+
+Hostname Aliasing
 -----------------
 
-By default, Gatling will have one DNS cache per virtual user.
-This can be tuned with the ``.shareDnsCache`` param so all virtual users share the same DNS cache.
+You can of course define hostname aliases at the OS level in the ``/etc/hosts`` file.
+
+But you can also pass a ``Map[String, String]`` to ``.hostNameAliases`` where values are valid IP addresses.
+Note that, just like with ``/etc/hosts`` you can only define one IP per alias.
 
 .. _http-protocol-virtual-host:
 
@@ -125,9 +143,12 @@ One can set a different Host than the url one::
 Local address
 -------------
 
-You can bind the sockets from a specific local address instead of the default one::
+You can bind the sockets from specific local addresses instead of the default one::
 
-  localAddress(localAddress: InetAddress)
+  localAddress(localAddress: String)
+  localAddresses(localAddress1: String, localAddress2: String)
+
+When setting multiple addresses, each virtual user is assigned to one single local address once and for all.
 
 Request building parameters
 ===========================
@@ -155,6 +176,8 @@ Gatling caches responses using :
 * ETag
 
 To disable this feature, just add ``.disableCaching`` to an HTTP Protocol Configuration definition.
+
+.. note:: When a response gets cached, checks are disabled.
 
 .. _http-protocol-urlencoding:
 
@@ -291,14 +314,14 @@ For example, it you'd like the dump the response body's length to ``simulation.l
 
 Gatling provides a built-in ``ExtraInfoExtractor``, ``dumpSessionOnFailure``, which dumps the user's session to ``simulation.log`` if the request failed.
 
-.. _http-protocol-processor:
+.. _http-protocol-response-transformer:
 
-Response and request processors
--------------------------------
+Response Transformers
+---------------------
 
 Some people might want to process manually the response. Gatling protocol provides a hook for that need: ``transformResponse(responseTransformer: ResponseTransformer)``
 
-.. note:: For more details see the dedicated section :ref:`here <http-response-processor>`.
+.. note:: For more details see the dedicated section :ref:`here <http-response-transformer>`.
 
 .. _http-protocol-check:
 

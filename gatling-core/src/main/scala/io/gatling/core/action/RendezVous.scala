@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,29 @@ package io.gatling.core.action
 
 import scala.collection.mutable
 
-import akka.actor.{ Props, ActorRef }
 import io.gatling.core.session.Session
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.util.NameGen
 
-object RendezVous {
-  def props(users: Int, next: ActorRef) =
-    Props(new RendezVous(users: Int, next))
+import akka.actor.{ ActorSystem, Props }
+
+object RendezVous extends NameGen {
+
+  def apply(users: Int, system: ActorSystem, statsEngine: StatsEngine, next: Action): Action = {
+    val actor = system.actorOf(RendezVousActor.props(users, next))
+    new ExitableActorDelegatingAction(genName("rendezVous"), statsEngine, next, actor)
+  }
+}
+
+object RendezVousActor {
+  def props(users: Int, next: Action) =
+    Props(new RendezVousActor(users: Int, next))
 }
 
 /**
  * Buffer Sessions until users is reached, then unleash buffer and become passthrough.
  */
-class RendezVous(users: Int, val next: ActorRef) extends Chainable {
+class RendezVousActor(users: Int, val next: Action) extends ActionActor {
 
   val buffer = mutable.Queue.empty[Session]
 

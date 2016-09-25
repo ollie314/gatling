@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,24 +15,46 @@
  */
 package io.gatling.jms.action
 
-import akka.actor.ActorSystem
-import com.typesafe.scalalogging.StrictLogging
+import io.gatling.commons.stats.Status
 import io.gatling.core.session.{ GroupBlock, Session }
-import io.gatling.core.stats.DefaultStatsEngine
-import io.gatling.core.stats.message.{ Status, ResponseTimings }
-import io.gatling.core.stats.writer.{ GroupMessage, ResponseMessage, DataWriterMessage }
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.stats.message.ResponseTimings
+import io.gatling.core.stats.writer.{ UserMessage, GroupMessage, ResponseMessage, DataWriterMessage }
 
-class MockStatsEngine(system: ActorSystem) extends DefaultStatsEngine(system, Nil) with StrictLogging {
+import akka.actor.ActorRef
+import com.typesafe.scalalogging.StrictLogging
+
+class MockStatsEngine extends StatsEngine with StrictLogging {
 
   var dataWriterMsg: List[DataWriterMessage] = List()
 
-  override def logResponse(session: Session,
-                           requestName: String,
-                           timings: ResponseTimings,
-                           status: Status,
-                           responseCode: Option[String],
-                           message: Option[String] = None,
-                           extraInfo: List[Any] = Nil): Unit =
+  override def start(): Unit = {}
+
+  override def stop(replyTo: ActorRef): Unit = {}
+
+  override def logUser(userMessage: UserMessage): Unit = {}
+
+  // [fl]
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  // [fl]
+
+  override def logResponse(
+    session:      Session,
+    requestName:  String,
+    timings:      ResponseTimings,
+    status:       Status,
+    responseCode: Option[String],
+    message:      Option[String]  = None,
+    extraInfo:    List[Any]       = Nil
+  ): Unit =
     handle(ResponseMessage(
       session.scenario,
       session.userId,
@@ -42,10 +64,15 @@ class MockStatsEngine(system: ActorSystem) extends DefaultStatsEngine(system, Ni
       status,
       None,
       message,
-      extraInfo))
+      extraInfo
+    ))
 
-  override def logGroupEnd(session: Session, group: GroupBlock, exitDate: Long): Unit =
-    handle(GroupMessage(session.scenario, session.userId, group.hierarchy, group.startDate, exitDate, group.cumulatedResponseTime, group.status))
+  override def logGroupEnd(session: Session, group: GroupBlock, exitTimestamp: Long): Unit =
+    handle(GroupMessage(session.scenario, session.userId, group.hierarchy, group.startTimestamp, exitTimestamp, group.cumulatedResponseTime, group.status))
+
+  override def logCrash(session: Session, requestName: String, error: String): Unit = {}
+
+  override def reportUnbuildableRequest(session: Session, requestName: String, errorMessage: String): Unit = {}
 
   private def handle(msg: DataWriterMessage) = {
     dataWriterMsg = msg :: dataWriterMsg

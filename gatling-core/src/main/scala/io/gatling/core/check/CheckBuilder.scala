@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,20 @@
  */
 package io.gatling.core.check
 
+import io.gatling.commons.validation._
 import io.gatling.core.check.extractor.Extractor
-import io.gatling.core.session.{ Session, Expression, ExpressionWrapper, RichExpression }
-import io.gatling.core.validation._
+import io.gatling.core.session._
 
 trait FindCheckBuilder[C <: Check[R], R, P, X] {
 
   def find: ValidatorCheckBuilder[C, R, P, X]
 }
 
-class DefaultFindCheckBuilder[C <: Check[R], R, P, X](extender: Extender[C, R],
-                                                      preparer: Preparer[R, P],
-                                                      extractor: Expression[Extractor[P, X]])
+class DefaultFindCheckBuilder[C <: Check[R], R, P, X](
+  extender:  Extender[C, R],
+  preparer:  Preparer[R, P],
+  extractor: Expression[Extractor[P, X]]
+)
     extends FindCheckBuilder[C, R, P, X] {
 
   def find: ValidatorCheckBuilder[C, R, P, X] = ValidatorCheckBuilder(extender, preparer, extractor)
@@ -41,8 +43,10 @@ trait MultipleFindCheckBuilder[C <: Check[R], R, P, X] extends FindCheckBuilder[
   def count: ValidatorCheckBuilder[C, R, P, Int]
 }
 
-abstract class DefaultMultipleFindCheckBuilder[C <: Check[R], R, P, X](extender: Extender[C, R],
-                                                                       preparer: Preparer[R, P])
+abstract class DefaultMultipleFindCheckBuilder[C <: Check[R], R, P, X](
+  extender: Extender[C, R],
+  preparer: Preparer[R, P]
+)
     extends MultipleFindCheckBuilder[C, R, P, X] {
 
   def findExtractor(occurrence: Int): Expression[Extractor[P, X]]
@@ -66,9 +70,10 @@ object ValidatorCheckBuilder {
 }
 
 case class ValidatorCheckBuilder[C <: Check[R], R, P, X](
-    extender: Extender[C, R],
-    preparer: Preparer[R, P],
-    extractor: Expression[Extractor[P, X]]) {
+    extender:  Extender[C, R],
+    preparer:  Preparer[R, P],
+    extractor: Expression[Extractor[P, X]]
+) {
 
   import ValidatorCheckBuilder._
 
@@ -78,7 +83,7 @@ case class ValidatorCheckBuilder[C <: Check[R], R, P, X](
       def arity = extractor.arity + ".transform"
 
       def apply(prepared: P): Validation[Option[X2]] =
-        safe(TransformErrorMapper) {
+        safely(TransformErrorMapper) {
           extractor(prepared).map(_.map(transformation))
         }
     }
@@ -95,7 +100,7 @@ case class ValidatorCheckBuilder[C <: Check[R], R, P, X](
       def arity = extractor.arity + ".transformOption"
 
       def apply(prepared: P): Validation[Option[X2]] =
-        safe(TransformOptionErrorMapper) {
+        safely(TransformOptionErrorMapper) {
           extractor(prepared).flatMap(transformation)
         }
     }
@@ -117,11 +122,11 @@ case class ValidatorCheckBuilder[C <: Check[R], R, P, X](
 
   def is(expected: Expression[X]) = validate(expected.map(new IsMatcher(_)))
   def not(expected: Expression[X]) = validate(expected.map(new NotMatcher(_)))
-  def in(expected: X*) = validate(expected.toSeq.expression.map(new InMatcher(_)))
+  def in(expected: X*) = validate(expected.toSeq.expressionSuccess.map(new InMatcher(_)))
   def in(expected: Expression[Seq[X]]) = validate(expected.map(new InMatcher(_)))
-  def exists = validate(new ExistsValidator[X]().expression)
-  def notExists = validate(new NotExistsValidator[X]().expression)
-  def optional = validate(new NoopValidator[X]().expression)
+  def exists = validate(new ExistsValidator[X]().expressionSuccess)
+  def notExists = validate(new NotExistsValidator[X]().expressionSuccess)
+  def optional = validate(new NoopValidator[X]().expressionSuccess)
   def lessThan(expected: Expression[X])(implicit ordering: Ordering[X]) = validate(expected.map(new CompareMatcher("lessThan", "less than", ordering.lt, _)))
   def lessThanOrEqual(expected: Expression[X])(implicit ordering: Ordering[X]) = validate(expected.map(new CompareMatcher("lessThanOrEqual", "less than or equal to", ordering.lteq, _)))
   def greaterThan(expected: Expression[X])(implicit ordering: Ordering[X]) = validate(expected.map(new CompareMatcher("greaterThan", "greater than", ordering.gt, _)))
@@ -130,8 +135,9 @@ case class ValidatorCheckBuilder[C <: Check[R], R, P, X](
 
 case class CheckBuilder[C <: Check[R], R, P, X](
     validatorCheckBuilder: ValidatorCheckBuilder[C, R, P, X],
-    validator: Expression[Validator[X]],
-    saveAs: Option[String] = None) {
+    validator:             Expression[Validator[X]],
+    saveAs:                Option[String]                    = None
+) {
 
   def build: C = {
     val base = CheckBase(validatorCheckBuilder.preparer, validatorCheckBuilder.extractor, validator, saveAs)

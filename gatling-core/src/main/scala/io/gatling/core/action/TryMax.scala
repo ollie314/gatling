@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,52 +15,64 @@
  */
 package io.gatling.core.action
 
+import scala.concurrent.duration._
+
+import io.gatling.commons.stats.KO
+import io.gatling.commons.validation._
+import io.gatling.core.session.{ Expression, Session, TryMaxBlock }
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.message.KO
+import io.gatling.core.util.NameGen
 
-import akka.actor.{ Props, ActorRef }
-import io.gatling.core.akka.BaseActor
-import io.gatling.core.session.{ TryMaxBlock, Session }
-import io.gatling.core.validation.{ Failure, Success }
+import akka.actor.ActorSystem
 
-object TryMax {
-  def props(times: Int, counterName: String, statsEngine: StatsEngine, next: ActorRef) =
-    Props(new TryMax(times, counterName, statsEngine, next))
+class TryMax(times: Expression[Int], counterName: String, statsEngine: StatsEngine, next: Action) extends Action with NameGen {
+
+  override val name = genName("tryMax")
+
+  private[this] var innerTryMax: Action = _
+  private[core] def initialize(loopNext: Action, system: ActorSystem): Unit =
+    innerTryMax = new InnerTryMax(times, loopNext, counterName, system, name + "-inner", next)
+
+  override def execute(session: Session): Unit =
+    if (BlockExit.noBlockExitTriggered(session, statsEngine)) {
+      innerTryMax ! session
+    }
 }
 
-class TryMax(times: Int, counterName: String, statsEngine: StatsEngine, next: ActorRef) extends BaseActor {
+class InnerTryMax(
+    times:       Expression[Int],
+    loopNext:    Action,
+    counterName: String,
+    system:      ActorSystem,
+    val name:    String,
+    val next:    Action
+) extends ChainableAction {
 
-  def initialized(innerTryMax: ActorRef): Receive =
-    Interruptable.interrupt(statsEngine) orElse { case m => innerTryMax forward m }
+  private[this] val lastUserIdThreadLocal = new ThreadLocal[Long]
 
-  val uninitialized: Receive = {
-    case loopNext: ActorRef =>
-      val actorName = self.path.name + "-inner"
-      val innerTryMax = context.actorOf(InnerTryMax.props(times, loopNext, counterName, next), actorName)
-      context.become(initialized(innerTryMax))
+  private[this] def getAndSetLastUserId(session: Session): Long = {
+    val lastUserId = lastUserIdThreadLocal.get()
+    lastUserIdThreadLocal.set(session.userId)
+    lastUserId
   }
-
-  override def receive = uninitialized
-}
-
-object InnerTryMax {
-  def props(times: Int, loopNext: ActorRef, counterName: String, next: ActorRef) =
-    Props(new InnerTryMax(times, loopNext, counterName, next))
-}
-
-class InnerTryMax(times: Int, loopNext: ActorRef, counterName: String, val next: ActorRef)
-    extends Chainable {
 
   private def blockFailed(session: Session): Boolean = session.blockStack.headOption match {
     case Some(TryMaxBlock(_, _, KO)) => true
     case _                           => false
   }
 
-  private def maxNotReached(session: Session): Boolean = session(counterName).validate[Int] match {
-    case Success(i) => i < times
-    case Failure(message) =>
-      logger.error(s"Condition evaluation for tryMax $counterName crashed with message '$message', exiting tryMax")
-      false
+  private def maxNotReached(session: Session): Boolean = {
+    val validationResult = for {
+      counter <- session(counterName).validate[Int]
+      max <- times(session)
+    } yield counter < max
+
+    validationResult match {
+      case Success(maxNotReached) => maxNotReached
+      case Failure(message) =>
+        logger.error(s"Condition evaluation for tryMax $counterName crashed with message '$message', exiting tryMax")
+        false
+    }
   }
 
   private def continue(session: Session): Boolean = blockFailed(session) && maxNotReached(session)
@@ -71,16 +83,35 @@ class InnerTryMax(times: Int, loopNext: ActorRef, counterName: String, val next:
    *
    * @param session the session of the virtual user
    */
-  def execute(session: Session): Unit =
-    if (!session.contains(counterName))
-      loopNext ! session.enterTryMax(counterName, self)
-    else {
+  def execute(session: Session): Unit = {
+
+    val lastUserId = getAndSetLastUserId(session)
+
+    if (!session.contains(counterName)) {
+      loopNext ! session.enterTryMax(counterName, this)
+    } else {
       val incrementedSession = session.incrementCounter(counterName)
 
-      if (continue(incrementedSession))
+      if (continue(incrementedSession)) {
+
         // reset status
-        loopNext ! incrementedSession.markAsSucceeded
-      else
+        val resetSession = incrementedSession.markAsSucceeded
+
+        if (session.userId == lastUserId) {
+          // except if we're running only one user, it's very likely we're hitting an empty loop
+          // let's schedule so we don't spin
+          import system.dispatcher
+          system.scheduler.scheduleOnce(1 millisecond) { // actual delay is tick (10 ms by default)
+            loopNext ! resetSession
+          }
+
+        } else {
+          loopNext ! resetSession
+        }
+
+      } else {
         next ! session.exitTryMax
+      }
     }
+  }
 }

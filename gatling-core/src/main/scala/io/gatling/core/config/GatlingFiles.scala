@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,25 +19,25 @@ import java.nio.file.Path
 
 import scala.util.Properties.{ envOrElse, propOrElse }
 
-import io.gatling.core.util.PathHelper._
+import io.gatling.commons.util.PathHelper._
 
 object GatlingFiles {
 
-  val GatlingHome: Path = string2path(envOrElse("GATLING_HOME", propOrElse("GATLING_HOME", ".")))
+  val GatlingHome: Path = envOrElse("GATLING_HOME", propOrElse("GATLING_HOME", "."))
   val GatlingAssetsPackage: Path = "assets"
   val GatlingJsFolder: Path = "js"
   val GatlingStyleFolder: Path = "style"
-  val GatlingAssetsJsPackage = GatlingAssetsPackage / GatlingJsFolder
-  val GatlingAssetsStylePackage = GatlingAssetsPackage / GatlingStyleFolder
+  val GatlingAssetsJsPackage: Path = GatlingAssetsPackage / GatlingJsFolder
+  val GatlingAssetsStylePackage: Path = GatlingAssetsPackage / GatlingStyleFolder
 
   private def resolvePath(path: Path): Path =
-    if (path.isAbsolute || path.exists) path else GatlingHome / path
+    (if (path.isAbsolute || path.exists) path else GatlingHome / path).normalize().toAbsolutePath
 
   def dataDirectory(implicit configuration: GatlingConfiguration): Path = resolvePath(configuration.core.directory.data)
   def bodiesDirectory(implicit configuration: GatlingConfiguration): Path = resolvePath(configuration.core.directory.bodies)
   def sourcesDirectory(implicit configuration: GatlingConfiguration): Path = resolvePath(configuration.core.directory.sources)
   def reportsOnlyDirectory(implicit configuration: GatlingConfiguration): Option[String] = configuration.core.directory.reportsOnly
-  def binariesDirectory(implicit configuration: GatlingConfiguration) = configuration.core.directory.binaries.map(path => resolvePath(path)).getOrElse(GatlingHome / "target" / "test-classes")
+  def binariesDirectory(configuration: GatlingConfiguration): Path = configuration.core.directory.binaries.map(path => resolvePath(path)).getOrElse(GatlingHome / "target" / "test-classes")
   def resultDirectory(runUuid: String)(implicit configuration: GatlingConfiguration): Path = resolvePath(configuration.core.directory.results) / runUuid
   def jsDirectory(runUuid: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runUuid) / GatlingJsFolder
   def styleDirectory(runUuid: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runUuid) / GatlingStyleFolder

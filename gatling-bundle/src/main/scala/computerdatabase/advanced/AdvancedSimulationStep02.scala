@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class AdvancedSimulationStep02 extends Simulation {
 
   object Edit {
 
-    val headers_10 = Map("Content-Type" -> """application/x-www-form-urlencoded""")
+    val headers_10 = Map("Content-Type" -> "application/x-www-form-urlencoded")
 
     val edit = exec(http("Form")
       .get("/computers/new"))
@@ -63,10 +63,10 @@ class AdvancedSimulationStep02 extends Simulation {
       .exec(http("Post")
         .post("/computers")
         .headers(headers_10)
-        .formParam("""name""", """Beautiful Computer""")
-        .formParam("""introduced""", """2012-05-30""")
-        .formParam("""discontinued""", """""")
-        .formParam("""company""", """37"""))
+        .formParam("name", "Beautiful Computer")
+        .formParam("introduced", "2012-05-30")
+        .formParam("discontinued", "")
+        .formParam("company", "37"))
   }
 
   val httpConf = http
@@ -84,5 +84,6 @@ class AdvancedSimulationStep02 extends Simulation {
   // Let's have 10 regular users and 2 admins, and ramp them on 10 sec so we don't hammer the server
   setUp(
     users.inject(rampUsers(10) over (10 seconds)),
-    admins.inject(rampUsers(2) over (10 seconds))).protocols(httpConf)
+    admins.inject(rampUsers(2) over (10 seconds))
+  ).protocols(httpConf)
 }

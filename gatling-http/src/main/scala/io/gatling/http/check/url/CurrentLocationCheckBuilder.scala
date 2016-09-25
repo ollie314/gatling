@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package io.gatling.http.check.url
 
+import io.gatling.commons.validation.SuccessWrapper
 import io.gatling.core.check.DefaultFindCheckBuilder
 import io.gatling.core.check.extractor._
-import io.gatling.core.session.ExpressionWrapper
-import io.gatling.core.validation.SuccessWrapper
+import io.gatling.core.session._
 import io.gatling.http.check.HttpCheck
 import io.gatling.http.check.HttpCheckBuilders._
 import io.gatling.http.response.Response
@@ -28,10 +28,11 @@ object CurrentLocationCheckBuilder {
   val CurrentLocationExtractor = new Extractor[Response, String] with SingleArity {
     val name = "currentLocation"
     def apply(prepared: Response) = Some(prepared.request.getUrl).success
-  }.expression
+  }.expressionSuccess
 
   val CurrentLocation = new DefaultFindCheckBuilder[HttpCheck, Response, Response, String](
     UrlExtender,
     PassThroughResponsePreparer,
-    CurrentLocationExtractor)
+    CurrentLocationExtractor
+  )
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,12 @@
  */
 package io.gatling.core.session
 
-import io.gatling.core.stats.message.{ OK, Status }
-import akka.actor.ActorRef
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.core.validation.{ Failure, Success }
-import com.typesafe.scalalogging.LazyLogging
+import io.gatling.commons.stats.{ OK, Status }
+import io.gatling.commons.util.TimeHelper.nowMillis
+import io.gatling.commons.validation._
+import io.gatling.core.action.Action
+
+import com.typesafe.scalalogging.StrictLogging
 
 sealed trait Block
 
@@ -27,10 +28,10 @@ sealed trait CounterBlock extends Block {
   def counterName: String
 }
 
-object LoopBlock extends LazyLogging {
+object LoopBlock extends StrictLogging {
 
   def unapply(block: Block): Option[String] = block match {
-    case ExitASAPLoopBlock(counterName, _, _) => Some(counterName)
+    case ExitAsapLoopBlock(counterName, _, _) => Some(counterName)
     case ExitOnCompleteLoopBlock(counterName) => Some(counterName)
     case _                                    => None
   }
@@ -45,8 +46,8 @@ object LoopBlock extends LazyLogging {
 
 case class ExitOnCompleteLoopBlock(counterName: String) extends CounterBlock
 
-case class ExitASAPLoopBlock(counterName: String, condition: Expression[Boolean], loopActor: ActorRef) extends CounterBlock
+case class ExitAsapLoopBlock(counterName: String, condition: Expression[Boolean], exitAction: Action) extends CounterBlock
 
-case class TryMaxBlock(counterName: String, tryMaxActor: ActorRef, status: Status = OK) extends CounterBlock
+case class TryMaxBlock(counterName: String, tryMaxAction: Action, status: Status = OK) extends CounterBlock
 
-case class GroupBlock(hierarchy: List[String], startDate: Long = nowMillis, cumulatedResponseTime: Int = 0, status: Status = OK) extends Block
+case class GroupBlock(hierarchy: List[String], startTimestamp: Long = nowMillis, cumulatedResponseTime: Int = 0, status: Status = OK) extends Block

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
  */
 package io.gatling.http.cookie
 
-import io.gatling.core.util.TimeHelper.nowMillis
-import io.gatling.http.util.HttpHelper.isSecure
+import io.gatling.commons.util.TimeHelper._
 
 import org.asynchttpclient.cookie.Cookie
 import org.asynchttpclient.uri.Uri
@@ -110,7 +109,7 @@ case class CookieJar(store: Map[CookieKey, StoredCookie]) {
 
         } else {
           val persistent = cookie.getMaxAge != UnspecifiedMaxAge
-          updatedStore + (CookieKey(cookie.getName.toLowerCase, keyDomain, keyPath) -> StoredCookie(cookie, hostOnly, persistent, nowMillis))
+          updatedStore + (CookieKey(cookie.getName.toLowerCase, keyDomain, keyPath) -> StoredCookie(cookie, hostOnly, persistent, unpreciseNowMillis))
         }
     }
 
@@ -125,12 +124,10 @@ case class CookieJar(store: Map[CookieKey, StoredCookie]) {
 
       val thisRequestPath = requestPath(requestUri)
 
-      val secureUri = isSecure(requestUri)
-
         def isCookieMatching(key: CookieKey, storedCookie: StoredCookie) =
           domainsMatch(key.domain, thisRequestDomain, storedCookie.hostOnly) &&
             pathsMatch(key.path, thisRequestPath) &&
-            (!storedCookie.cookie.isSecure || secureUri)
+            (!storedCookie.cookie.isSecure || requestUri.isSecured)
 
       val matchingCookies = store.filter {
         case (key, storedCookie) => isCookieMatching(key, storedCookie)

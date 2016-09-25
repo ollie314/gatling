@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,107 +15,143 @@
  */
 package io.gatling.core.controller.inject
 
+import scala.collection.breakOut
 import scala.concurrent.duration._
 
-import io.gatling.core.controller.UserStream
+import io.gatling.commons.util.{ LongCounter, PushbackIterator }
+import io.gatling.commons.util.Collections._
+import io.gatling.commons.util.TimeHelper._
+import io.gatling.core.controller.ControllerCommand
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
-import io.gatling.core.stats.message.Start
 import io.gatling.core.stats.writer.UserMessage
-import io.gatling.core.util.TimeHelper._
 
-import akka.actor.{ Cancellable, ActorSystem }
-import com.typesafe.scalalogging.StrictLogging
+import akka.actor.{ Cancellable, Props, ActorSystem, ActorRef }
 
-object Injection {
+sealed trait InjectorCommand
+object InjectorCommand {
+  case object Start extends InjectorCommand
+  case object Tick extends InjectorCommand
+}
+
+private[inject] case class UserStream(scenario: Scenario, stream: PushbackIterator[FiniteDuration]) {
+
+  def withStream(batchWindow: FiniteDuration, injectTime: Long, startTime: Long)(f: (Scenario, FiniteDuration) => Unit): Injection = {
+
+    if (stream.hasNext) {
+      val batchTimeOffset = (injectTime - startTime).millis
+      val nextBatchTimeOffset = batchTimeOffset + batchWindow
+
+      var continue = true
+      var streamNonEmpty = true
+      var count = 0L
+
+      while (streamNonEmpty && continue) {
+
+        val startingTime = stream.next()
+        streamNonEmpty = stream.hasNext
+        val delay = startingTime - batchTimeOffset
+        continue = startingTime < nextBatchTimeOffset
+
+        if (continue) {
+          count += 1
+          // TODO instead of scheduling each user separately, we could group them by rounded-up delay (Akka defaults to 10ms)
+          f(scenario, delay)
+        } else {
+          streamNonEmpty = true
+          stream.pushback(startingTime)
+        }
+      }
+
+      Injection(count, streamNonEmpty)
+    } else {
+      Injection.Empty
+    }
+  }
+}
+
+private[inject] object Injection {
   val Empty = Injection(0, continue = false)
 }
 
-case class Injection(count: Long, continue: Boolean) {
+private[inject] case class Injection(count: Long, continue: Boolean) {
   def +(other: Injection): Injection =
     Injection(count + other.count, continue && other.continue)
 }
 
 object Injector {
 
-  def apply(system: ActorSystem, statsEngine: StatsEngine, scenarios: List[Scenario]): Injector = {
-    val userStreams = scenarios.map(scenario => scenario.name -> UserStream(scenario, scenario.injectionProfile.allUsers)).toMap
-    new DefaultInjector(system, statsEngine, userStreams)
+  val InjectorActorName = "gatling-injector"
+
+  def apply(system: ActorSystem, controller: ActorRef, statsEngine: StatsEngine, scenarios: List[Scenario]): ActorRef = {
+    val userStreams: Map[String, UserStream] = scenarios.map(scenario => scenario.name -> UserStream(scenario, new PushbackIterator(scenario.injectionProfile.allUsers)))(breakOut)
+    system.actorOf(Props(new Injector(controller, statsEngine, userStreams)), InjectorActorName)
   }
 }
 
-trait Injector {
-  def inject(batchWindow: FiniteDuration): Injection
-}
+private[inject] class Injector(controller: ActorRef, statsEngine: StatsEngine, defaultStreams: Map[String, UserStream]) extends InjectorFSM {
 
-// not thread-safe, supposed to be called only by controller with is an Actor and guarantees thread-safety
-class DefaultInjector(system: ActorSystem, statsEngine: StatsEngine, userStreams: Map[String, UserStream]) extends Injector with StrictLogging {
+  import InjectorState._
+  import InjectorData._
+  import InjectorCommand._
 
-  implicit val dispatcher = system.dispatcher
-  var startTime: Long = _
-  var userIdGen: Long = _
-  var timer: Option[Cancellable] = None
+  private val tickPeriod = 1 second
+  private val initialBatchWindow = tickPeriod * 2
 
-  private def initStartTime(): Unit =
-    if (startTime == 0L) {
-      startTime = nowMillis
+  val userIdGen = new LongCounter
+
+  private def inject(streams: Map[String, UserStream], batchWindow: FiniteDuration, startMillis: Long, count: Long, timer: Cancellable): State = {
+    val injection = injectStreams(streams, batchWindow, startMillis)
+    val newCount = injection.count + count
+    if (injection.continue) {
+      goto(Started) using StartedData(startMillis, newCount, timer)
+
+    } else {
+      controller ! ControllerCommand.InjectionStopped(newCount)
+      timer.cancel()
+      // FIXME do we really need to stop? Or go to a noop state?
+      stop()
     }
-
-  private def newUserId(): Long = {
-    userIdGen += 1
-    userIdGen
   }
 
-  override def inject(batchWindow: FiniteDuration): Injection = {
-    initStartTime()
-    val injections = userStreams.values.map(injectUserStream(_, batchWindow))
-    val totalCount = injections.map(_.count).sum
-    val totalContinue = !injections.exists(i => !i.continue)
+  private def injectStreams(streams: Map[String, UserStream], batchWindow: FiniteDuration, startTime: Long): Injection = {
+    val injections = streams.values.map(_.withStream(batchWindow, nowMillis, startTime)(injectUser))
+    val totalCount = injections.sumBy(_.count)
+    val totalContinue = injections.exists(_.continue)
+    logger.debug(s"Injecting $totalCount users, continue=$totalContinue")
     Injection(totalCount, totalContinue)
   }
 
-  private def injectUserStream(userStream: UserStream, batchWindow: FiniteDuration): Injection = {
+  private def startUser(scenario: Scenario, userId: Long): Unit = {
+    val rawSession = Session(scenario = scenario.name, userId = userId, onExit = scenario.onExit)
+    val session = scenario.onStart(rawSession)
+    scenario.entry ! session
+    logger.debug(s"Start user #${session.userId}")
+    val userStart = UserMessage(session, io.gatling.core.stats.message.Start, session.startDate)
+    statsEngine.logUser(userStart)
+  }
 
-    val scenario = userStream.scenario
-    val stream = userStream.stream
+  private def injectUser(scenario: Scenario, delay: FiniteDuration): Unit = {
+    val userId = userIdGen.incrementAndGet()
 
-      def startUser(userId: Long): Unit = {
-        val session = Session(scenario = scenario.name, userId = userId, onExit = scenario.onExit)
-        scenario.entry ! session
-        logger.info(s"Start user #${session.userId}")
-        val userStart = UserMessage(session, Start, session.startDate)
-        statsEngine.logUser(userStart)
-      }
-
-    if (stream.hasNext) {
-      val batchTimeOffset = (nowMillis - startTime).millis
-      val nextBatchTimeOffset = batchTimeOffset + batchWindow
-
-      var continue = true
-      var notLast = true
-      var count = 0L
-
-      while (notLast && continue) {
-
-        val startingTime = stream.next()
-        notLast = stream.hasNext
-        val delay = startingTime - batchTimeOffset
-        continue = startingTime < nextBatchTimeOffset
-        count += 1
-        val userId = newUserId()
-
-        if (continue && delay <= ZeroMs) {
-          startUser(userId)
-        } else {
-          // Reduce the starting time to the millisecond precision to avoid flooding the scheduler
-          system.scheduler.scheduleOnce(toMillisPrecision(delay))(startUser(userId))
-        }
-      }
-
-      Injection(count, notLast)
+    if (delay <= ZeroMs) {
+      startUser(scenario, userId)
     } else {
-      Injection.Empty
+      system.scheduler.scheduleOnce(delay)(startUser(scenario, userId))
     }
+  }
+
+  startWith(WaitingToStart, NoData)
+
+  when(WaitingToStart) {
+    case Event(Start, NoData) =>
+      val timer = system.scheduler.schedule(initialBatchWindow, tickPeriod, self, Tick)
+      inject(defaultStreams, initialBatchWindow, nowMillis, 0, timer)
+  }
+
+  when(Started) {
+    case Event(Tick, StartedData(startMillis, count, timer)) =>
+      inject(defaultStreams, tickPeriod, startMillis, count, timer)
   }
 }

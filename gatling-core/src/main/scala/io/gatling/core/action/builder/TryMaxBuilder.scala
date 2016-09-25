@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,17 @@
  */
 package io.gatling.core.action.builder
 
-import io.gatling.core.action.TryMax
-import io.gatling.core.structure.{ ScenarioContext, ChainBuilder }
+import io.gatling.core.action.{ Action, TryMax }
+import io.gatling.core.session.Expression
+import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
 
-import akka.actor.ActorRef
+class TryMaxBuilder(times: Expression[Int], counterName: String, loopNext: ChainBuilder) extends ActionBuilder {
 
-class TryMaxBuilder(times: Int, counterName: String, loopNext: ChainBuilder) extends ActionBuilder {
-
-  def build(ctx: ScenarioContext, next: ActorRef) = {
+  override def build(ctx: ScenarioContext, next: Action): Action = {
     import ctx._
-    val tryMaxActor = system.actorOf(TryMax.props(times, counterName, coreComponents.statsEngine, next), actorName("tryMax"))
-    val loopContent = loopNext.build(ctx, tryMaxActor)
-    tryMaxActor ! loopContent
-    tryMaxActor
+    val tryMaxAction = new TryMax(times, counterName, coreComponents.statsEngine, next)
+    val loopNextAction = loopNext.build(ctx, tryMaxAction)
+    tryMaxAction.initialize(loopNextAction, ctx.system)
+    tryMaxAction
   }
 }

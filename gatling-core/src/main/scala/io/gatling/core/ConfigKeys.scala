@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ object ConfigKeys {
     val Mute = "gatling.core.mute"
     val ElFileBodiesCacheMaxCapacity = "gatling.core.elFileBodiesCacheMaxCapacity"
     val RawFileBodiesCacheMaxCapacity = "gatling.core.rawFileBodiesCacheMaxCapacity"
+    val RawFileBodiesInMemoryMaxSize = "gatling.core.rawFileBodiesInMemoryMaxSize"
 
     object extract {
       object regex {
@@ -54,6 +55,7 @@ object ConfigKeys {
   object charting {
     val NoReports = "gatling.charting.noReports"
     val MaxPlotPerSeries = "gatling.charting.maxPlotPerSeries"
+    val UseGroupDurationMetric = "gatling.charting.useGroupDurationMetric"
 
     object indicators {
       val LowerBound = "gatling.charting.indicators.lowerBound"
@@ -73,51 +75,61 @@ object ConfigKeys {
     val EnableGA = "gatling.http.enableGA"
 
     object ssl {
-      object trustStore {
-        val Type = "gatling.http.ssl.trustStore.type"
-        val File = "gatling.http.ssl.trustStore.file"
-        val Password = "gatling.http.ssl.trustStore.password"
-        val Algorithm = "gatling.http.ssl.trustStore.algorithm"
-      }
       object keyStore {
         val Type = "gatling.http.ssl.keyStore.type"
         val File = "gatling.http.ssl.keyStore.file"
         val Password = "gatling.http.ssl.keyStore.password"
         val Algorithm = "gatling.http.ssl.keyStore.algorithm"
       }
+      object trustStore {
+        val Type = "gatling.http.ssl.trustStore.type"
+        val File = "gatling.http.ssl.trustStore.file"
+        val Password = "gatling.http.ssl.trustStore.password"
+        val Algorithm = "gatling.http.ssl.trustStore.algorithm"
+      }
     }
 
     object ahc {
-      val AllowPoolingConnections = "gatling.http.ahc.allowPoolingConnections"
-      val AllowPoolingSslConnections = "gatling.http.ahc.allowPoolingSslConnections"
-      val CompressionEnforced = "gatling.http.ahc.compressionEnforced"
+      val KeepAlive = "gatling.http.ahc.keepAlive"
       val ConnectTimeout = "gatling.http.ahc.connectTimeout"
+      val HandshakeTimeout = "gatling.http.ahc.handshakeTimeout"
       val PooledConnectionIdleTimeout = "gatling.http.ahc.pooledConnectionIdleTimeout"
       val ReadTimeout = "gatling.http.ahc.readTimeout"
-      val ConnectionTTL = "gatling.http.ahc.connectionTTL"
-      val IoThreadMultiplier = "gatling.http.ahc.ioThreadMultiplier"
-      val MaxConnectionsPerHost = "gatling.http.ahc.maxConnectionsPerHost"
-      val MaxConnections = "gatling.http.ahc.maxConnections"
       val MaxRetry = "gatling.http.ahc.maxRetry"
       val RequestTimeout = "gatling.http.ahc.requestTimeout"
-      val UseProxyProperties = "gatling.http.ahc.useProxyProperties"
-      val WebSocketTimeout = "gatling.http.ahc.webSocketTimeout"
       val AcceptAnyCertificate = "gatling.http.ahc.acceptAnyCertificate"
       val HttpClientCodecMaxInitialLineLength = "gatling.http.ahc.httpClientCodecMaxInitialLineLength"
       val HttpClientCodecMaxHeaderSize = "gatling.http.ahc.httpClientCodecMaxHeaderSize"
       val HttpClientCodecMaxChunkSize = "gatling.http.ahc.httpClientCodecMaxChunkSize"
-      val KeepEncodingHeader = "gatling.http.ahc.keepEncodingHeader"
       val WebSocketMaxFrameSize = "gatling.http.ahc.webSocketMaxFrameSize"
       val SslEnabledProtocols = "gatling.http.ahc.sslEnabledProtocols"
       val SslEnabledCipherSuites = "gatling.http.ahc.sslEnabledCipherSuites"
       val SslSessionCacheSize = "gatling.http.ahc.sslSessionCacheSize"
       val SslSessionTimeout = "gatling.http.ahc.sslSessionTimeout"
+      val UseOpenSsl = "gatling.http.ahc.useOpenSsl"
+      val UseNativeTransport = "gatling.http.ahc.useNativeTransport"
+      val UsePooledMemory = "gatling.http.ahc.usePooledMemory"
+      val TcpNoDelay = "gatling.http.ahc.tcpNoDelay"
+      val SoReuseAddress = "gatling.http.ahc.soReuseAddress"
+      val SoLinger = "gatling.http.ahc.soLinger"
+      val SoSndBuf = "gatling.http.ahc.soSndBuf"
+      val SoRcvBuf = "gatling.http.ahc.soRcvBuf"
+      val Allocator = "gatling.http.ahc.allocator"
+      val MaxThreadLocalCharBufferSize = "gatling.http.ahc.maxThreadLocalCharBufferSize"
     }
+
+    object dns {
+      val QueryTimeout = "gatling.http.dns.queryTimeout"
+      val MaxQueriesPerResolve = "gatling.http.dns.maxQueriesPerResolve"
+    }
+  }
+
+  object jms {
+    val AcknowledgedMessagesBufferSize = "gatling.jms.acknowledgedMessagesBufferSize"
   }
 
   object data {
     val Writers = "gatling.data.writers"
-    val Reader = "gatling.data.reader"
 
     object file {
       val BufferSize = "gatling.data.file.bufferSize"
@@ -138,4 +150,20 @@ object ConfigKeys {
       val WriteInterval = "gatling.data.graphite.writeInterval"
     }
   }
+
+  // [fl]
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  // [fl]
 }

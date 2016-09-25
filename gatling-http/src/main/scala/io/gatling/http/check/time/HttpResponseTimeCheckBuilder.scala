@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package io.gatling.http.check.time
 
+import io.gatling.commons.validation._
 import io.gatling.core.check.DefaultFindCheckBuilder
 import io.gatling.core.check.extractor._
-import io.gatling.core.session.{ Expression, ExpressionWrapper }
-import io.gatling.core.validation.SuccessWrapper
+import io.gatling.core.session._
 import io.gatling.http.check.HttpCheck
 import io.gatling.http.check.HttpCheckBuilders._
 import io.gatling.http.response.Response
@@ -28,15 +28,11 @@ object HttpResponseTimeCheckBuilder {
   val ResponseTimeInMillis = apply(new Extractor[Response, Int] with SingleArity {
     val name = "responseTime"
     def apply(prepared: Response) = Some(prepared.timings.responseTime).success
-  }.expression)
-
-  val LatencyInMillis = apply(new Extractor[Response, Int] with SingleArity {
-    val name = "latency"
-    def apply(prepared: Response) = Some(prepared.timings.latency).success
-  }.expression)
+  }.expressionSuccess)
 
   def apply(extractor: Expression[Extractor[Response, Int]]) = new DefaultFindCheckBuilder[HttpCheck, Response, Response, Int](
     TimeExtender,
     PassThroughResponsePreparer,
-    extractor)
+    extractor
+  )
 }

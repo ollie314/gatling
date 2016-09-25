@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
  */
 package io.gatling.metrics.types
 
+import io.gatling.commons.stats.{ KO, OK, Status }
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.message.{ KO, OK, Status }
 
 import org.HdrHistogram.{ IntCountsHistogram, AbstractHistogram }
 
@@ -51,7 +51,8 @@ class HistogramRequestMetricsBuffer(configuration: GatlingConfiguration) extends
     MetricByStatus(
       ok = metricsOfHistogram(okHistogram),
       ko = metricsOfHistogram(koHistogram),
-      all = metricsOfHistogram(allHistogram))
+      all = metricsOfHistogram(allHistogram)
+    )
 
   private def metricsOfHistogram(histogram: AbstractHistogram): Option[Metrics] = {
     val count = histogram.getTotalCount
@@ -65,7 +66,8 @@ class HistogramRequestMetricsBuffer(configuration: GatlingConfiguration) extends
         percentile1 = histogram.getValueAtPercentile(percentile1).toInt,
         percentile2 = histogram.getValueAtPercentile(percentile2).toInt,
         percentile3 = histogram.getValueAtPercentile(percentile3).toInt,
-        percentile4 = histogram.getValueAtPercentile(percentile4).toInt))
+        percentile4 = histogram.getValueAtPercentile(percentile4).toInt
+      ))
     } else
       None
   }

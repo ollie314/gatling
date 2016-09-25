@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,26 +15,27 @@
  */
 package io.gatling.jms.integration
 
-import scala.concurrent.duration._
-
 import javax.jms.{ Message, MessageListener }
 
-import io.gatling.core.stats.StatsEngine
+import scala.concurrent.duration._
 
-import akka.actor.ActorRef
 import io.gatling.core.CoreComponents
+import io.gatling.core.action.{ Action, ActorDelegatingAction }
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.controller.throttle.Throttler
 import io.gatling.core.pause.Constant
-import io.gatling.core.protocol.{ ProtocolComponentsRegistry, Protocols }
+import io.gatling.core.protocol.{ ProtocolComponentsRegistries, Protocols }
 import io.gatling.core.session.Session
-import io.gatling.core.structure.{ ScenarioContext, ScenarioBuilder }
+import io.gatling.core.stats.StatsEngine
+import io.gatling.core.structure.{ ScenarioBuilder, ScenarioContext }
 import io.gatling.jms._
-import io.gatling.jms.client.{ SimpleJmsClient, BrokerBasedSpec }
+import io.gatling.jms.client.{ BrokerBasedSpec, JmsReqReplyClient }
 import io.gatling.jms.request.JmsDestination
+
+import akka.actor.ActorRef
 import org.apache.activemq.jndi.ActiveMQInitialContextFactory
 
-class JmsMockCustomer(client: SimpleJmsClient, mockResponse: PartialFunction[Message, String]) extends MessageListener {
+class JmsMockCustomer(client: JmsReqReplyClient, mockResponse: PartialFunction[Message, String]) extends MessageListener {
 
   val producer = client.session.createProducer(null)
   client.createReplyConsumer().setMessageListener(this)
@@ -62,16 +63,18 @@ trait JmsMockingSpec extends BrokerBasedSpec with JmsDsl {
     .listenerCount(1)
 
   def runScenario(sb: ScenarioBuilder, timeout: FiniteDuration = 10.seconds, protocols: Protocols = Protocols(jmsProtocol))(implicit configuration: GatlingConfiguration) = {
-    val coreComponents = CoreComponents(mock[ActorRef], mock[Throttler], mock[StatsEngine], mock[ActorRef])
-    val actor = sb.build(ScenarioContext(system, coreComponents, new ProtocolComponentsRegistry(system, coreComponents, protocols), configuration, Constant, throttled = false), self)
+    val coreComponents = CoreComponents(mock[ActorRef], mock[Throttler], mock[StatsEngine], mock[Action], configuration)
+    val next = new ActorDelegatingAction("next", self)
+    val protocolComponentsRegistry = new ProtocolComponentsRegistries(system, coreComponents, protocols).scenarioRegistry(Protocols(Nil))
+    val actor = sb.build(ScenarioContext(system, coreComponents, protocolComponentsRegistry, Constant, throttled = false), next)
     actor ! Session("TestSession", 0)
     val session = expectMsgClass(timeout, classOf[Session])
 
     session
   }
 
-  def jmsMock(queue: JmsDestination, f: PartialFunction[Message, String]) = {
+  def jmsMock(queue: JmsDestination, f: PartialFunction[Message, String]): Unit = {
     val processor = new JmsMockCustomer(createClient(queue), f)
-    cleanUpActions = { () => processor.close() } :: cleanUpActions
+    registerCleanUpAction(() => processor.close())
   }
 }

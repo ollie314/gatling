@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +17,23 @@ package io.gatling.core.action
 
 import scala.concurrent.duration.DurationLong
 
+import io.gatling.commons.util.TimeHelper.nowMillis
+import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.stats.StatsEngine
 
-import akka.actor.{ Props, ActorRef }
-import io.gatling.core.session.{ Expression, Session }
-import io.gatling.core.util.TimeHelper.nowMillis
-
-object Pause {
-  def props(delayGenerator: Expression[Long], statsEngine: StatsEngine, next: ActorRef) =
-    Props(new Pause(delayGenerator, statsEngine, next))
-}
+import akka.actor.ActorSystem
 
 /**
  * PauseAction provides a convenient means to implement pause actions based on random distributions.
  *
  * @param pauseDuration a function that can be used to generate a delay for the pause action
+ * @param system the ActorSystem
  * @param statsEngine the StatsEngine
  * @param next the next action to execute, which will be notified after the pause is complete
  */
-class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val next: ActorRef) extends Interruptable with Failable {
+class Pause(pauseDuration: Expression[Long], system: ActorSystem, val statsEngine: StatsEngine, val name: String, val next: Action) extends ExitableAction {
+
+  import system._
 
   /**
    * Generates a duration if required or use the one given and defer
@@ -43,7 +41,7 @@ class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val n
    *
    * @param session the session of the virtual user
    */
-  def executeOrFail(session: Session) = {
+  override def execute(session: Session): Unit = recover(session) {
 
       def schedule(durationInMillis: Long) = {
         val drift = session.drift
@@ -55,9 +53,13 @@ class Pause(pauseDuration: Expression[Long], val statsEngine: StatsEngine, val n
 
           val pauseStart = nowMillis
 
-          scheduler.scheduleOnce(durationMinusDrift milliseconds) {
-            val newDrift = nowMillis - pauseStart - durationMinusDrift
-            next ! session.setDrift(newDrift)
+          try {
+            scheduler.scheduleOnce(durationMinusDrift milliseconds) {
+              val newDrift = nowMillis - pauseStart - durationMinusDrift
+              next ! session.setDrift(newDrift)
+            }
+          } catch {
+            case ise: IllegalStateException => // engine was shutdown
           }
 
         } else {

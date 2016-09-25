@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,14 @@ package io.gatling.core.structure
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import io.gatling.core.pause.PauseType
-
 import scala.concurrent.duration.{ Duration, DurationLong }
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
+import io.gatling.commons.validation._
 import io.gatling.core.action.builder.{ PaceBuilder, PauseBuilder, RendezVousBuilder }
-import io.gatling.core.session.{ Expression, ExpressionWrapper, Session }
+import io.gatling.core.pause.PauseType
+import io.gatling.core.session._
 import io.gatling.core.session.el.El
-import io.gatling.core.validation.SuccessWrapper
 
 trait Pauses[B] extends Execs[B] {
 
@@ -37,7 +36,7 @@ trait Pauses[B] extends Execs[B] {
 
   private def durationExpression(min: Duration, max: Duration): Expression[Duration] =
     if (min == max)
-      min.expression
+      min.expressionSuccess
 
     else {
       val minMillis = min.toMillis
@@ -75,7 +74,7 @@ trait Pauses[B] extends Execs[B] {
    */
   def pause(duration: Duration): B = pause(duration, None)
   def pause(duration: Duration, force: PauseType): B = pause(duration, Some(force))
-  private def pause(duration: Duration, force: Option[PauseType]): B = pause(duration.expression, force)
+  private def pause(duration: Duration, force: Option[PauseType]): B = pause(duration.expressionSuccess, force)
 
   def pause(duration: String): B = pause(duration, TimeUnit.SECONDS, None)
   def pause(duration: String, force: PauseType): B = pause(duration, TimeUnit.SECONDS, Some(force))
@@ -99,7 +98,7 @@ trait Pauses[B] extends Execs[B] {
   def pause(duration: Expression[Duration], force: PauseType): B = pause(duration, Some(force))
   private def pause(duration: Expression[Duration], force: Option[PauseType]): B = exec(new PauseBuilder(duration, force))
 
-  def pace(duration: Duration): B = pace(duration.expression)
+  def pace(duration: Duration): B = pace(duration.expressionSuccess)
   def pace(duration: String, unit: TimeUnit = TimeUnit.SECONDS): B = pace(durationExpression(duration, unit))
 
   def pace(min: Duration, max: Duration): B = pace(durationExpression(min, max))

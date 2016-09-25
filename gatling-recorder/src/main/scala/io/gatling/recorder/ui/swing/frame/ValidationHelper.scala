@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +22,16 @@ import scala.swing._
 import scala.swing.Swing.MatteBorder
 import scala.util.Try
 
-import io.gatling.core.util.StringHelper.RichString
+import io.gatling.commons.util.StringHelper.RichString
 
 private[swing] object ValidationHelper {
 
   case class Validator(
-    condition: String => Boolean,
+    condition:       String => Boolean,
     successCallback: Component => Unit = setStandardBorder,
     failureCallback: Component => Unit = setErrorBorder,
-    alwaysValid: Boolean = false)
+    alwaysValid:     Boolean           = false
+  )
 
   // Those are lazy vals to avoid unneccessary component creation when they're not needed (e.g. tests)
   private lazy val standardBorder = new TextField().border

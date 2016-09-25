@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,25 +15,24 @@
  */
 package io.gatling.core.action.builder
 
-import io.gatling.core.action.Switch
+import io.gatling.commons.util.RoundRobin
+import io.gatling.commons.validation.SuccessWrapper
+import io.gatling.core.action.{ Action, Switch }
 import io.gatling.core.session.Expression
-import io.gatling.core.structure.{ ScenarioContext, ChainBuilder }
-import io.gatling.core.util.RoundRobin
-import io.gatling.core.validation.SuccessWrapper
+import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
+import io.gatling.core.util.NameGen
 
-import akka.actor.ActorRef
-
-class RoundRobinSwitchBuilder(possibilities: List[ChainBuilder]) extends ActionBuilder {
+class RoundRobinSwitchBuilder(possibilities: List[ChainBuilder]) extends ActionBuilder with NameGen {
 
   require(possibilities.size >= 2, "Round robin switch requires at least 2 possibilities")
 
-  def build(ctx: ScenarioContext, next: ActorRef) = {
+  override def build(ctx: ScenarioContext, next: Action): Action = {
 
     val possibleActions = possibilities.map(_.build(ctx, next)).toArray
     val roundRobin = RoundRobin(possibleActions)
 
-    val nextAction: Expression[ActorRef] = _ => roundRobin.next.success
+    val nextAction: Expression[Action] = _ => roundRobin.next.success
 
-    ctx.system.actorOf(Switch.props(nextAction, ctx.coreComponents.statsEngine, next), actorName("roundRobinSwitch"))
+    new Switch(nextAction, ctx.coreComponents.statsEngine, genName("roundRobinSwitch"), next)
   }
 }

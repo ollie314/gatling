@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package io.gatling.recorder.ui
 
+import scala.concurrent.duration._
+
 import io.gatling.recorder.config.RecorderConfiguration
-import java.nio.charset.Charset
-import org.jboss.netty.handler.codec.http.{ HttpMessage, HttpRequest, HttpResponse }
-import scala.concurrent.duration.{ DurationLong, FiniteDuration }
+import io.gatling.recorder.http.model.{ SafeHttpResponse, SafeHttpRequest }
 
 private[recorder] sealed trait EventInfo
 
@@ -27,15 +27,13 @@ private[recorder] case class PauseInfo(duration: FiniteDuration) extends EventIn
   override def toString = s"PAUSE $toPrint"
 }
 
-private[recorder] case class RequestInfo(request: HttpRequest, response: HttpResponse)(implicit configuration: RecorderConfiguration) extends EventInfo {
+private[recorder] case class RequestInfo(request: SafeHttpRequest, response: SafeHttpResponse)(implicit configuration: RecorderConfiguration) extends EventInfo {
 
-  private def getHttpBody(message: HttpMessage) = message.getContent.toString(Charset.forName(configuration.core.encoding))
+  val requestBody = new String(request.body, configuration.core.encoding)
 
-  val requestBody = getHttpBody(request)
+  val responseBody = new String(response.body, configuration.core.encoding)
 
-  val responseBody = getHttpBody(response)
-
-  override def toString = s"${request.getMethod} | ${request.getUri}"
+  override def toString = s"${request.method} | ${request.uri}"
 }
 
 private[recorder] case class SSLInfo(uri: String) extends EventInfo

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,17 +20,16 @@ import java.io.{ File, IOException }
 import scala.annotation.tailrec
 import scala.collection.immutable.SortedMap
 
-import com.dongxiguo.fastring.Fastring.Implicits._
-
-import com.typesafe.scalalogging.StrictLogging
-
-import io.gatling.core.util.Io._
-import io.gatling.core.util.PathHelper._
-import io.gatling.core.validation._
+import io.gatling.commons.util.Io._
+import io.gatling.commons.util.PathHelper._
+import io.gatling.commons.validation._
 import io.gatling.http.{ HeaderNames, HeaderValues }
 import io.gatling.recorder.config.RecorderConfiguration
 import io.gatling.recorder.har.HarReader
 import io.gatling.recorder.scenario.template.SimulationTemplate
+
+import com.dongxiguo.fastring.Fastring.Implicits._
+import com.typesafe.scalalogging.StrictLogging
 
 private[recorder] object ScenarioExporter extends StrictLogging {
 
@@ -53,7 +52,7 @@ private[recorder] object ScenarioExporter extends StrictLogging {
     f"${config.core.className}_${request.id.filled(4, '0')}_response.txt"
 
   def exportScenario(harFilePath: String)(implicit config: RecorderConfiguration): Validation[Unit] =
-    safe(_ => "Error while processing HAR file") {
+    safely(_ => "Error while processing HAR file") {
       val har = HarReader(harFilePath)
       if (har.elements.isEmpty) {
         "the selected file doesn't contain any valid HTTP requests".failure
@@ -86,8 +85,10 @@ private[recorder] object ScenarioExporter extends StrictLogging {
 
     // extract the request elements and set all the necessary
     val elements = scenarioElements.map {
-      case reqEl: RequestElement => reqEl.makeRelativeTo(baseUrl)
-      case el                    => el
+      case reqEl: RequestElement =>
+        reqEl.nonEmbeddedResources.foreach(_.makeRelativeTo(baseUrl))
+        reqEl.makeRelativeTo(baseUrl)
+      case el => el
     }
 
     // FIXME mutability!!!
@@ -115,7 +116,7 @@ private[recorder] object ScenarioExporter extends StrictLogging {
               .filterNot {
                 case (headerName, headerValue) =>
                   val isFiltered = filteredHeaders contains headerName
-                  val isAlreadyInBaseHeaders = baseHeaders.get(headerName).exists(_ == headerValue)
+                  val isAlreadyInBaseHeaders = baseHeaders.get(headerName).contains(headerValue)
                   val isPostWithFormParams = element.method == "POST" && headerValue == HeaderValues.ApplicationFormUrlEncoded
                   isFiltered || isAlreadyInBaseHeaders || isPostWithFormParams
               }
@@ -154,10 +155,12 @@ private[recorder] object ScenarioExporter extends StrictLogging {
 
       def getMostFrequentHeaderValue(headerName: String): Option[String] = {
         val headers = requestElements.flatMap {
-          _.headers.collect { case (name, value) if name == headerName => value }
+          _.headers.collect { case (`headerName`, value) => value }
         }
 
-        if (headers.isEmpty) None
+        if (headers.isEmpty || headers.length != requestElements.length)
+          // a header has to be defined on all requestElements to be turned into a common one
+          None
         else {
           val headersValuesOccurrences = headers.groupBy(identity).mapValues(_.size).toSeq
           val mostFrequentValue = headersValuesOccurrences.maxBy(_._2)._1

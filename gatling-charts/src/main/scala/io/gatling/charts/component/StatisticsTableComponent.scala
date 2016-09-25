@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
  */
 package io.gatling.charts.component
 
-import com.dongxiguo.fastring.Fastring.Implicits.{ FastringContext, MkFastring }
-
 import io.gatling.charts.config.ChartsFiles.GlobalPageName
 import io.gatling.charts.report.Container.{ Group, Request }
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.NumberHelper._
-import io.gatling.core.util.StringHelper._
+import io.gatling.commons.util.NumberHelper._
+import io.gatling.commons.util.StringHelper._
+
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] class StatisticsTableComponent(implicit configuration: GatlingConfiguration) extends Component {
 
@@ -87,7 +87,7 @@ function generateHtmlRow(request, level, index, parent, group) {
     if (request.name == '$GlobalPageName')
         var url = 'index.html';
     else
-        var url ='req_' + request.pathFormatted + '.html';
+        var url = request.pathFormatted + '.html';
 
     if (group)
         var expandButtonStyle = '';

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ private[app] class ArgsParser(args: Array[String]) {
 
     opt[Unit](Mute)
       .foreach(_ => props.mute())
-      .text("Runs in mute mode: don't asks for run description nor simulation ID, use defaults")
+      .text("Runs in mute mode: doesn't ask for run description or simulation ID, uses defaults")
 
     opt[String](ReportsOnly)
       .foreach(props.reportsOnly)

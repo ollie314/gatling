@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,20 @@
  */
 package io.gatling.http.ahc
 
-import java.net.InetAddress
 import java.util.concurrent.atomic.AtomicBoolean
 
-import org.asynchttpclient.netty.request.NettyRequest
-import org.asynchttpclient._
-import org.asynchttpclient.handler._
+import scala.util.control.NonFatal
+
+import io.gatling.commons.util.ClassHelper._
+import io.gatling.http.action.sync.HttpTx
+import io.gatling.http.response.Response
+
+import org.asynchttpclient.{ Response => _, _ }
 import org.asynchttpclient.AsyncHandler.State
 import org.asynchttpclient.AsyncHandler.State._
+import org.asynchttpclient.handler._
+import org.asynchttpclient.netty.request.NettyRequest
 import com.typesafe.scalalogging._
-
-import scala.util.control.NonFatal
 
 object AsyncHandler extends StrictLogging {
   val DebugEnabled = logger.underlying.isDebugEnabled
@@ -37,56 +40,70 @@ object AsyncHandler extends StrictLogging {
  *
  * It is part of the HttpRequestAction
  *
- * @constructor constructs a GatlingAsyncHandler
+ * @constructor constructs a Gatling AsyncHandler
  * @param tx the data about the request to be sent and processed
- * @param httpEngine the HTTP engine
+ * @param responseProcessor the responseProcessor
  */
-class AsyncHandler(tx: HttpTx, httpEngine: HttpEngine) extends ProgressAsyncHandler[Unit] with AsyncHandlerExtensions with LazyLogging {
+class AsyncHandler(tx: HttpTx, responseProcessor: ResponseProcessor) extends ExtendedAsyncHandler[Unit] with LazyLogging {
 
   val responseBuilder = tx.responseBuilderFactory(tx.request.ahcRequest)
   private val init = new AtomicBoolean
   private val done = new AtomicBoolean
+  // [fl]
+  //
+  //
+  //
+  //
+  //
+  // [fl]
 
-  private def start(): Unit =
+  private[http] def start(): Unit =
     if (init.compareAndSet(false, true)) {
-      httpEngine.coreComponents.statsEngine.logRequest(tx.session, tx.request.requestName)
-      responseBuilder.updateFirstByteSent()
+      responseBuilder.updateStartTimestamp()
+      // [fl]
+      //
+      // [fl]
     }
 
-  override def onOpenConnection(): Unit = start()
+  // [fl]
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  // [fl]
 
-  override def onConnectionOpen(): Unit = {}
-
-  override def onPoolConnection(): Unit = {}
-
-  override def onConnectionPooled(): Unit = {}
-
-  override def onDnsResolved(address: InetAddress): Unit =
-    responseBuilder.setRemoteAddress(address)
-
-  override def onSslHandshakeCompleted(): Unit = {}
-
-  override def onSendRequest(request: Any): Unit = {
-    start()
-    if (AsyncHandler.DebugEnabled)
+  override def onRequestSend(request: NettyRequest): Unit = {
+    responseBuilder.doReset()
+    if (AsyncHandler.DebugEnabled) {
       responseBuilder.setNettyRequest(request.asInstanceOf[NettyRequest])
+    }
   }
 
   override def onRetry(): Unit =
-    if (!done.get) responseBuilder.reset()
-    else logger.error("onRetry is not supposed to be called once done, please report")
-
-  override def onHeaderWriteCompleted: State = {
-    if (!done.get) responseBuilder.updateLastByteSent()
-    CONTINUE
-  }
-
-  override def onContentWriteCompleted: State = {
-    if (!done.get) responseBuilder.updateLastByteSent()
-    CONTINUE
-  }
-
-  override def onContentWriteProgress(amount: Long, current: Long, total: Long) = CONTINUE
+    if (!done.get) responseBuilder.markReset()
 
   override def onStatusReceived(status: HttpResponseStatus): State = {
     if (!done.get) responseBuilder.accumulate(status)
@@ -103,23 +120,36 @@ class AsyncHandler(tx: HttpTx, httpEngine: HttpEngine) extends ProgressAsyncHand
     CONTINUE
   }
 
-  override def onCompleted: Unit =
+  private def withResponse(f: Response => Unit): Unit =
     if (done.compareAndSet(false, true)) {
-      try { httpEngine.asyncHandlerActors ! OnCompleted(tx, responseBuilder.build) }
-      catch { case NonFatal(e) => sendOnThrowable(e) }
+      try {
+        val response = responseBuilder.build
+        f(response)
+      } catch {
+        case NonFatal(t) => sendOnThrowable(responseBuilder.buildSafeResponse, t)
+      }
+    }
+
+  override def onCompleted: Unit =
+    withResponse { response =>
+      try {
+        responseProcessor.onCompleted(tx, response)
+      } catch {
+        case NonFatal(t) => sendOnThrowable(response, t)
+      }
     }
 
   override def onThrowable(throwable: Throwable): Unit =
-    if (done.compareAndSet(false, true)) {
-      responseBuilder.updateLastByteReceived()
-      sendOnThrowable(throwable)
+    withResponse { response =>
+      responseBuilder.updateEndTimestamp()
+      sendOnThrowable(response, throwable)
     }
 
-  def sendOnThrowable(throwable: Throwable): Unit = {
-    val className = throwable.getClass.getName
+  private def sendOnThrowable(response: Response, throwable: Throwable): Unit = {
+    val classShortName = throwable.getClass.getShortName
     val errorMessage = throwable.getMessage match {
-      case null => className
-      case m    => s"$className: $m"
+      case null => classShortName
+      case m    => s"$classShortName: $m"
     }
 
     if (AsyncHandler.DebugEnabled)
@@ -127,6 +157,6 @@ class AsyncHandler(tx: HttpTx, httpEngine: HttpEngine) extends ProgressAsyncHand
     else if (AsyncHandler.InfoEnabled)
       logger.info(s"Request '${tx.request.requestName}' failed for user ${tx.session.userId}: $errorMessage")
 
-    httpEngine.asyncHandlerActors ! OnThrowable(tx, responseBuilder.build, errorMessage)
+    responseProcessor.onThrowable(tx, response, errorMessage)
   }
 }

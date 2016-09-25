@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,10 @@ package io.gatling.jms.protocol
 import io.gatling.core.protocol.ProtocolComponents
 import io.gatling.core.session.Session
 
-case class JmsComponents(jmsProtocol: JmsProtocol) extends ProtocolComponents {
+import akka.actor.ActorRef
 
+case class JmsComponents(jmsProtocol: JmsProtocol, tracker: ActorRef) extends ProtocolComponents {
+
+  def onStart: Option[Session => Session] = None
   def onExit: Option[Session => Unit] = None
 }

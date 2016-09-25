@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
  */
 package io.gatling.core.check.extractor.jsonpath
 
+import io.gatling.commons.validation.Validation
 import io.gatling.core.check.extractor._
-import io.gatling.core.validation.Validation
 
 class JsonPathExtractorFactory(implicit val jsonPaths: JsonPaths) extends CriterionExtractorFactory[Any, String]("jsonPath") {
 

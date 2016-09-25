@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,36 +17,43 @@ package io.gatling.core.body
 
 import java.io.File
 
+import io.gatling.commons.util.Io._
+import io.gatling.commons.validation._
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Expression
-import io.gatling.core.util.Io._
 import io.gatling.core.util.Resource
-import io.gatling.core.util.cache.SelfLoadingThreadSafeCache
-import io.gatling.core.validation.Validation
+import io.gatling.core.util.cache.Cache
+
+import com.github.benmanes.caffeine.cache.LoadingCache
+
+case class FileWithCachedBytes(file: File, cachedBytes: Option[Array[Byte]]) {
+  def bytes: Array[Byte] = cachedBytes.getOrElse(file.toByteArray)
+}
 
 class RawFileBodies(implicit configuration: GatlingConfiguration) {
 
-  private val pathToFile: String => Validation[File] = path => Resource.body(path).map(_.file)
-  private val pathToFileBytes: String => Validation[Array[Byte]] = path => Resource.body(path).map(_.file.toByteArray())
+  private val rawFileBodyCache: LoadingCache[String, Validation[File]] = {
+    val pathToFile: String => Validation[File] = path => Resource.body(path).map(_.file)
+    Cache.newConcurrentLoadingCache(configuration.core.rawFileBodiesCacheMaxCapacity, pathToFile)
+  }
 
-  private val rawFileBodyCache =
-    SelfLoadingThreadSafeCache[String, Validation[File]](configuration.core.rawFileBodiesCacheMaxCapacity, pathToFile)
+  private val rawFileBodyBytesCache: LoadingCache[String, Validation[Array[Byte]]] = {
+    val pathToFileBytes: String => Validation[Array[Byte]] = path => Resource.body(path).map(_.file.toByteArray)
+    Cache.newConcurrentLoadingCache(configuration.core.rawFileBodiesCacheMaxCapacity, pathToFileBytes)
+  }
 
-  def asFile(filePath: Expression[String]): Expression[File] =
+  private def cachedBytes(file: File): Validation[Option[Array[Byte]]] =
+    if (file.length > configuration.core.rawFileBodiesInMemoryMaxSize)
+      Success(None)
+    else
+      rawFileBodyBytesCache.get(file.getPath).map(Some(_))
+
+  def asFileWithCachedBytes(filePath: Expression[String]): Expression[FileWithCachedBytes] =
     session =>
       for {
         path <- filePath(session)
         file <- rawFileBodyCache.get(path)
         validatedFile <- file.validateExistingReadable
-      } yield validatedFile
-
-  private val rawFileBodyBytesCache =
-    SelfLoadingThreadSafeCache[String, Validation[Array[Byte]]](configuration.core.rawFileBodiesCacheMaxCapacity, pathToFileBytes)
-
-  def asBytes(filePath: Expression[String]): Expression[Array[Byte]] =
-    session =>
-      for {
-        path <- filePath(session)
-        bytes <- rawFileBodyBytesCache.get(path)
-      } yield bytes
+        cachedBytes <- cachedBytes(validatedFile)
+      } yield FileWithCachedBytes(validatedFile, cachedBytes)
 }

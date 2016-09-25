@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,15 @@
  */
 package io.gatling.charts.template
 
-import com.dongxiguo.fastring.Fastring.Implicits._
+import io.gatling.commons.stats.ErrorStats
+import io.gatling.commons.util.StringHelper._
 import io.gatling.charts.component.Statistics
 import io.gatling.charts.component.Statistics.printable
-import io.gatling.core.stats.reader.DataReader
+import io.gatling.charts.component.{ GroupedCount, RequestStatistics }
 import io.gatling.core.stats.writer.ConsoleErrorsWriter
 import io.gatling.core.stats.writer.ConsoleSummary._
-import io.gatling.core.util.StringHelper._
-import io.gatling.charts.component.{ GroupedCount, RequestStatistics }
+
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] object ConsoleTemplate {
 
@@ -36,8 +37,7 @@ private[charts] object ConsoleTemplate {
     fast"> ${name.rightPad(OutputLength - 32)} ${count.toString.leftPad(7)} (${percentage.toString.leftPad(3)}%)"
   }
 
-  def writeErrorsAndEndBlock(dataReader: DataReader): Fastring = {
-    val errors = dataReader.errors(None, None)
+  def writeErrorsAndEndBlock(errors: Seq[ErrorStats]): Fastring = {
     if (errors.isEmpty)
       fast"$NewBlock"
     else
@@ -46,7 +46,7 @@ ${errors.map(ConsoleErrorsWriter.writeError).mkFastring(Eol)}
 $NewBlock"""
   }
 
-  def apply(dataReader: DataReader, requestStatistics: RequestStatistics): String = {
+  def println(requestStatistics: RequestStatistics, errors: Seq[ErrorStats]): String = {
     import requestStatistics._
     fast"""
 $NewBlock
@@ -58,10 +58,12 @@ ${writeRequestCounters(meanStatistics)}
 ${writeRequestCounters(stdDeviationStatistics)}
 ${writeRequestCounters(percentiles1)}
 ${writeRequestCounters(percentiles2)}
+${writeRequestCounters(percentiles3)}
+${writeRequestCounters(percentiles4)}
 ${writeRequestCounters(meanNumberOfRequestsPerSecondStatistics)}
 ${writeSubTitle("Response Time Distribution")}
 ${groupedCounts.map(writeGroupedCounters).mkFastring(Eol)}
-${writeErrorsAndEndBlock(dataReader)}
+${writeErrorsAndEndBlock(errors)}
 """.toString
   }
 }

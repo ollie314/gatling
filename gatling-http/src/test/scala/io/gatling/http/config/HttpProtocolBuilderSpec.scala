@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@ import io.gatling.http.request.ExtraInfo
 
 class HttpProtocolBuilderSpec extends BaseSpec {
 
-  implicit val configuration = GatlingConfiguration.loadForTest()
-  implicit val httpCaches = new HttpCaches
-  implicit val httpEngine = mock[HttpEngine]
-  implicit val httpProtocolBuilder = HttpProtocolBuilder(configuration)
+  val configuration = GatlingConfiguration.loadForTest()
+  val httpCaches = new HttpCaches(configuration)
+  val httpEngine = mock[HttpEngine]
+  val httpProtocolBuilder = HttpProtocolBuilder(configuration)
 
   "http protocol configuration builder" should "support an optional extra info extractor" in {
 
@@ -50,7 +50,7 @@ class HttpProtocolBuilderSpec extends BaseSpec {
 
     val config: HttpProtocol = builder.build
 
-    Seq(config.baseURL.get, config.baseURL.get, config.baseURL.get) shouldBe Seq(url, url, url)
+    Seq(config.baseUrlIterator.get.next(), config.baseUrlIterator.get.next(), config.baseUrlIterator.get.next()) shouldBe Seq(url, url, url)
   }
 
   it should "provide a Round-Robin strategy when multiple urls are provided" in {
@@ -63,7 +63,7 @@ class HttpProtocolBuilderSpec extends BaseSpec {
 
     val config: HttpProtocol = builder.build
 
-    Seq(config.baseURL.get, config.baseURL.get, config.baseURL.get) shouldBe Seq(url1, url2, url1)
+    Seq(config.baseUrlIterator.get.next(), config.baseUrlIterator.get.next(), config.baseUrlIterator.get.next()) shouldBe Seq(url1, url2, url1)
   }
 
   it should "set a silent URI regex" in {

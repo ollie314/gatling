@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
  */
 package io.gatling.http
 
+import scala.concurrent.duration._
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
-import scala.concurrent.duration._
 
 class HttpCompileTest extends Simulation {
 
@@ -46,10 +47,12 @@ class HttpCompileTest extends Simulation {
     .check(bodyString.transform((string, session) => string.size).lessThan(100000))
     .check(bodyString.transformOption(stringO => stringO.map(_.size)).lessThan(100000))
     .check(bodyString.transformOption((stringO, session) => stringO.map(_.size)).lessThan(100000))
+    .check(form("#form").transform { foo: Map[String, Seq[String]] => foo }.saveAs("theForm"))
     .disableCaching
     .disableWarmUp
     .warmUp("http://gatling.io")
     .inferHtmlResources(white = WhiteList(".*\\.html"))
+    .hostNameAliases(Map("foo" -> "127.0.0.1"))
 
   val httpConfToVerifyDumpSessionOnFailureBuiltIn = http.extraInfoExtractor(dumpSessionOnFailure)
 
@@ -87,6 +90,7 @@ class HttpCompileTest extends Simulation {
     }
     .group("C'est ici qu'on trouve des Poneys") {
       exec(http("Catégorie Poney").post("/")
+        .form("${theForm}")
         .formParam("baz", "${qix}")
         .multivaluedFormParam("foo", Seq("bar")))
         .exec(http("Catégorie Poney").post("/").multivaluedFormParam("foo", "${bar}"))
@@ -102,11 +106,13 @@ class HttpCompileTest extends Simulation {
         http("Catégorie Poney").post("/").multivaluedFormParam("foo", "${bar}"),
         http("Catégorie Poney").get("/").queryParam("omg", "foo"),
         http("Catégorie Poney").get("/").queryParam("omg", "${foo}"),
-        http("Catégorie Poney").get("/").queryParam("omg", session => "foo")))
+        http("Catégorie Poney").get("/").queryParam("omg", session => "foo")
+      ))
     .uniformRandomSwitch(exec(http("Catégorie Poney").get("/")), exec(http("Catégorie Licorne").get("/")))
     .randomSwitch(
       40d -> exec(http("Catégorie Poney").get("/")),
-      50d -> exec(http("Catégorie Licorne").get("/")))
+      50d -> exec(http("Catégorie Licorne").get("/"))
+    )
     .randomSwitch(40d -> exec(http("Catégorie Poney").get("/")))
     .pause(pause2)
     // Loop
@@ -117,15 +123,17 @@ class HttpCompileTest extends Simulation {
         println("iterate: " + session("titi"))
         session
       })
+        .exec(http("").httpRequest("JSON", "/support/get-plot-data?chartID=66"))
         .exec(
           http("Page accueil").get("http://localhost:3000")
             .check(
               xpath("//input[@value='${aaaa_value}']/@id").saveAs("sessionParam"),
               xpath("//input[@id='${aaaa_value}']/@value").notExists,
-              css(""".foo"""),
-              css("""#foo""", "href"),
-              css(""".foo""").ofType[Node].count.is(1),
-              css(""".foo""").notExists,
+              css(".foo"),
+              css("#foo", "href"),
+              css(".foo").ofType[Node].count.is(1),
+              css(".foo").notExists,
+              css("#foo").ofType[Node].transform { node: Node => node.getNodeName },
               regex("""<input id="text1" type="text" value="aaaa" />""").optional.saveAs("var1"),
               regex("""<input id="text1" type="text" value="aaaa" />""").count.is(1),
               regex("""<input id="text1" type="test" value="aaaa" />""").notExists,
@@ -138,8 +146,9 @@ class HttpCompileTest extends Simulation {
               xpath("//input[@id='text1']/@value").is("aaaa").saveAs("test2"),
               md5.is("0xA59E79AB53EEF2883D72B8F8398C9AC3"),
               substring("Foo"),
-              responseTimeInMillis.lessThan(1000),
-              latencyInMillis.lessThan(1000)))
+              responseTimeInMillis.lessThan(1000)
+            )
+        )
         .during(12000 milliseconds, "foo") {
           exec(http("In During 1").get("http://localhost:3000/aaaa"))
             .pause(2, constantPauses)
@@ -182,7 +191,14 @@ class HttpCompileTest extends Simulation {
         .exec(http("Url from session").get("/aaaa"))
         .pause(1000 milliseconds)
         // Second request to be repeated
-        .exec(http("Create Thing blabla").post("/things").queryParam("login", "${login}").queryParam("password", "${password}").body(ElFileBody("create_thing.txt")).asJSON)
+        .exec(http("Create Thing blabla")
+          .post("/things")
+          .queryParam("login", "${login}")
+          .queryParam("password", "${password}")
+          .queryParam("foo", 1) // make sure raw non String objects are converted
+          .queryParam("foo", _ => 1) // make raw non String objects returned by functions are converted
+          .queryParam("foo", (session: Session) => io.gatling.commons.validation.Success(1)) // make sure functions returning expressions of other types are properly converted
+          .body(ElFileBody("create_thing.txt")).asJSON)
         .pause(pause1)
         // Third request to be repeated
         .exec(http("Liste Articles").get("/things").queryParam("firstname", "${firstname}").queryParam("lastname", "${lastname}"))
@@ -194,10 +210,15 @@ class HttpCompileTest extends Simulation {
         .randomSwitch(
           40d -> exec(http("Possibility 1").get("/p1")),
           55d -> exec(http("Possibility 2").get("/p2")) // last 5% bypass
-          )
+        )
         .exec(http("Create Thing omgomg")
           .post("/things").queryParam("postTest", "${sessionParam}").body(RawFileBody("create_thing.txt")).asJSON
           .check(status.is(201).saveAs("status")))
+        .exec(http("bodyParts")
+          .post("url")
+          .formUpload("name", "path")
+          .bodyPart(RawFileBodyPart("name", "path"))
+          .bodyPart(ElFileBodyPart("name", "path")))
     }
     // Head request
     .exec(http("head on root").head("/").proxy(Proxy("172.31.76.106", 8080).httpsPort(8081)))
@@ -221,11 +242,27 @@ class HttpCompileTest extends Simulation {
     .pace("${foo}", "${bar}")
     .doSwitch("${foo}")(
       "a" -> exec(http("a").get("/")),
-      "b" -> exec(http("b").get("/")))
+      "b" -> exec(http("b").get("/"))
+    )
     .doSwitchOrElse("${foo}")(
       "a" -> exec(http("a").get("/")),
       "b" -> exec(http("b").get("/")) //
-      )(exec(http("else").get("/")))
+    )(exec(http("else").get("/")))
+    .exec(http("transformResponse")
+      .get("/")
+      .transformResponse {
+        case response if response.isReceived =>
+          import io.gatling.http.response._
+          new ResponseWrapper(response) {
+            override val body = new StringResponseBody(response.body.string.replace(")]}',", ""), response.charset)
+          }
+      })
+    .exec(session => session.set("tryMax", 3))
+    .tryMax("${tryMax}") {
+      exec(http("tryMaxWithExpression")
+        .get("/"))
+    }
+
 
   val inject1 = nothingFor(10 milliseconds)
   val inject2 = rampUsers(10).over(10 minutes)
@@ -237,9 +274,11 @@ class HttpCompileTest extends Simulation {
   val inject8 = heavisideUsers(1000) over (20 seconds)
 
   val injectionSeq = Vector(1, 2, 4, 8).map(x => rampUsers(x * 100) over (5 seconds))
-  setUp(lambdaUser.inject(inject1),
+  setUp(
+    lambdaUser.inject(inject1),
     lambdaUser.inject(injectionSeq: _*),
-    lambdaUser.inject(inject1, inject2).throttle(jumpToRps(20), reachRps(40) in (10 seconds), holdFor(30 seconds)))
+    lambdaUser.inject(inject1, inject2).throttle(jumpToRps(20), reachRps(40) in (10 seconds), holdFor(30 seconds))
+  )
     .protocols(httpProtocol)
     .pauses(uniformPausesPlusOrMinusPercentage(1))
     .disablePauses
@@ -256,7 +295,8 @@ class HttpCompileTest extends Simulation {
       forAll.responseTime.max.is(100),
       details("Users" / "Search" / "Index page").responseTime.mean.greaterThan(0),
       details("Admins" / "Create").failedRequests.percent.lessThan(90),
-      details("request_9").requestsPerSec.greaterThan(10))
+      details("request_9").requestsPerSec.greaterThan(10)
+    )
     .throttle(jumpToRps(20), reachRps(40) in (10 seconds), holdFor(30 seconds))
     // Applies on the setup
     .constantPauses
@@ -264,4 +304,27 @@ class HttpCompileTest extends Simulation {
     .exponentialPauses
     .uniformPauses(1.5)
     .uniformPauses(1337 seconds)
+
+  // Conditional check compile test
+  val requestWithUntypedCheckIf =
+    http("untypedCheckIf").get("/")
+      .check(
+        checkIf("${bool}") {
+          jsonPath("$..foo")
+        }
+      )
+
+  def isJsonResponse(response: Response): Boolean = response.header(HttpHeaderNames.ContentType).exists { x => x.contains(HttpHeaderValues.ApplicationJson) }
+
+  val requestWithTypedCheckIf =
+    http("typedCheckIf").get("/")
+      .check(
+        checkIf((response: Response, _: Session) => isJsonResponse(response)) {
+          jsonPath("$..foo")
+        }
+      )
+
+  //[fl]
+  //
+  //[fl]
 }

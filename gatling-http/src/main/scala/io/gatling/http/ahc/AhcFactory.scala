@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,35 +15,36 @@
  */
 package io.gatling.http.ahc
 
-import java.util.{ ArrayList => JArrayList }
-import java.util.concurrent.{ ExecutorService, TimeUnit, ThreadFactory, Executors }
+import java.util.concurrent.TimeUnit
 
 import io.gatling.core.{ CoreComponents, ConfigKeys }
-import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.Session
-import io.gatling.core.util.ReflectionHelper._
+import io.gatling.http.resolver.ExtendedDnsNameResolver
 import io.gatling.http.util.SslHelper._
 
 import akka.actor.ActorSystem
-import org.asynchttpclient._
-import org.asynchttpclient.netty.NettyAsyncHttpProviderConfig
-import org.asynchttpclient.netty.NettyAsyncHttpProviderConfig.NettyWebSocketFactory
-import org.asynchttpclient.netty.channel.pool.{ ChannelPool, DefaultChannelPool }
-import org.asynchttpclient.netty.ws.NettyWebSocket
-import org.asynchttpclient.ws.WebSocketListener
 import com.typesafe.scalalogging.StrictLogging
-import org.jboss.netty.channel.Channel
-import org.jboss.netty.channel.socket.nio.{ NioWorkerPool, NioClientBossPool, NioClientSocketChannelFactory }
-import org.jboss.netty.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
-import org.jboss.netty.util.{ Timer, HashedWheelTimer }
+import io.netty.channel.EventLoopGroup
+import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.util.concurrent.DefaultThreadFactory
+import io.netty.util.internal.logging.{ Slf4JLoggerFactory, InternalLoggerFactory }
+import io.netty.util.{ Timer, HashedWheelTimer }
+import org.asynchttpclient.AsyncHttpClientConfig._
+import org.asynchttpclient._
 
 private[gatling] object AhcFactory {
 
-  val AhcFactorySystemProperty = "gatling.ahcFactory"
-
-  def apply(system: ActorSystem, coreComponents: CoreComponents)(implicit configuration: GatlingConfiguration): AhcFactory =
-    sys.props.get(AhcFactorySystemProperty).map(newInstance[AhcFactory](_, system, coreComponents, configuration))
-      .getOrElse(new DefaultAhcFactory(system, coreComponents))
+  def apply(system: ActorSystem, coreComponents: CoreComponents): AhcFactory =
+    coreComponents.configuration.resolve(
+      // [fl]
+      //
+      //
+      //
+      //
+      //
+      // [fl]
+      new DefaultAhcFactory(system, coreComponents)
+    )
 }
 
 private[gatling] trait AhcFactory {
@@ -51,82 +52,53 @@ private[gatling] trait AhcFactory {
   def defaultAhc: AsyncHttpClient
 
   def newAhc(session: Session): AsyncHttpClient
+
+  def newNameResolver(): ExtendedDnsNameResolver
 }
 
-private[gatling] class DefaultAhcFactory(system: ActorSystem, coreComponents: CoreComponents)(implicit val configuration: GatlingConfiguration) extends AhcFactory with StrictLogging {
+private[gatling] class DefaultAhcFactory(system: ActorSystem, coreComponents: CoreComponents) extends AhcFactory with StrictLogging {
 
-  import configuration.http.{ ahc => ahcConfig }
+  val configuration = coreComponents.configuration
+  val ahcConfig = configuration.http.ahc
+
+  private def setSystemPropertyIfUndefined(name: String, value: Any): Unit =
+    if (System.getProperty(name) == null) {
+      System.setProperty(name, value.toString)
+    }
+
+  setSystemPropertyIfUndefined("io.netty.allocator.type", configuration.http.ahc.allocator)
+  setSystemPropertyIfUndefined("io.netty.maxThreadLocalCharBufferSize", configuration.http.ahc.maxThreadLocalCharBufferSize)
 
   // set up Netty LoggerFactory for slf4j instead of default JDK
-  InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory)
+  InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE)
 
-  private def newApplicationThreadPool: ExecutorService = {
-
-    val applicationThreadPool = Executors.newCachedThreadPool(new ThreadFactory {
-      override def newThread(r: Runnable) = {
-        val t = new Thread(r, "Netty Thread")
-        t.setDaemon(true)
-        t
-      }
-    })
-    system.registerOnTermination(() => applicationThreadPool.shutdown())
-    applicationThreadPool
+  private[this] def newEventLoopGroup(poolName: String): EventLoopGroup = {
+    val eventLoopGroup = new NioEventLoopGroup(0, new DefaultThreadFactory(poolName))
+    system.registerOnTermination(eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS))
+    eventLoopGroup
   }
 
-  private def newNioThreadPool: ExecutorService = {
-    val nioThreadPool = Executors.newCachedThreadPool
-    system.registerOnTermination(() => nioThreadPool.shutdown())
-    nioThreadPool
-  }
-
-  private def newTimer: Timer = {
+  private[this] def newTimer: Timer = {
     val timer = new HashedWheelTimer(10, TimeUnit.MILLISECONDS)
     timer.start()
     system.registerOnTermination(timer.stop())
     timer
   }
 
-  private def newChannelPool(timer: Timer): ChannelPool = {
-    new DefaultChannelPool(ahcConfig.pooledConnectionIdleTimeout,
-      ahcConfig.connectionTTL,
-      ahcConfig.allowPoolingSslConnections,
-      timer)
-  }
-
-  private def newNettyConfig(nioThreadPool: ExecutorService, timer: Timer, channelPool: ChannelPool): NettyAsyncHttpProviderConfig = {
-    val numWorkers = ahcConfig.ioThreadMultiplier * Runtime.getRuntime.availableProcessors
-    val socketChannelFactory = new NioClientSocketChannelFactory(new NioClientBossPool(nioThreadPool, 1, timer, null), new NioWorkerPool(nioThreadPool, numWorkers))
-    system.registerOnTermination(socketChannelFactory.releaseExternalResources())
-    val nettyConfig = new NettyAsyncHttpProviderConfig
-    nettyConfig.setSocketChannelFactory(socketChannelFactory)
-    nettyConfig.setNettyTimer(timer)
-    nettyConfig.setChannelPool(channelPool)
-    nettyConfig.setNettyWebSocketFactory(new NettyWebSocketFactory {
-      override def newNettyWebSocket(channel: Channel, config: AsyncHttpClientConfig): NettyWebSocket =
-        new NettyWebSocket(channel, config, new JArrayList[WebSocketListener](1))
-    })
-    nettyConfig
-  }
-
-  private[gatling] def newAhcConfigBuilder(applicationThreadPool: ExecutorService, nettyConfig: NettyAsyncHttpProviderConfig) = {
-    val ahcConfigBuilder = new AsyncHttpClientConfig.Builder()
-      .setAllowPoolingConnections(ahcConfig.allowPoolingConnections)
-      .setAllowPoolingSslConnections(ahcConfig.allowPoolingSslConnections)
-      .setCompressionEnforced(ahcConfig.compressionEnforced)
+  private[gatling] def newAhcConfigBuilder(eventLoopGroup: EventLoopGroup, timer: Timer) = {
+    val ahcConfigBuilder = new DefaultAsyncHttpClientConfig.Builder()
+      .setKeepAlive(ahcConfig.keepAlive)
       .setConnectTimeout(ahcConfig.connectTimeout)
+      .setHandshakeTimeout(ahcConfig.handshakeTimeout)
       .setPooledConnectionIdleTimeout(ahcConfig.pooledConnectionIdleTimeout)
       .setReadTimeout(ahcConfig.readTimeout)
-      .setConnectionTTL(ahcConfig.connectionTTL)
-      .setIOThreadMultiplier(ahcConfig.ioThreadMultiplier)
-      .setMaxConnectionsPerHost(ahcConfig.maxConnectionsPerHost)
-      .setMaxConnections(ahcConfig.maxConnections)
       .setMaxRequestRetry(ahcConfig.maxRetry)
       .setRequestTimeout(ahcConfig.requestTimeOut)
-      .setUseProxyProperties(ahcConfig.useProxyProperties)
+      .setUseProxyProperties(false)
       .setUserAgent(null)
-      .setExecutorService(applicationThreadPool)
-      .setAsyncHttpClientProviderConfig(nettyConfig)
-      .setWebSocketTimeout(ahcConfig.webSocketTimeout)
+      .setEventLoopGroup(eventLoopGroup)
+      .setNettyTimer(timer)
+      .setResponseBodyPartFactory(ResponseBodyPartFactory.LAZY)
       .setAcceptAnyCertificate(ahcConfig.acceptAnyCertificate)
       .setEnabledProtocols(ahcConfig.sslEnabledProtocols match {
         case Nil => null
@@ -136,33 +108,39 @@ private[gatling] class DefaultAhcFactory(system: ActorSystem, coreComponents: Co
         case Nil => null
         case ps  => ps.toArray
       })
-      .setSslSessionCacheSize(if (ahcConfig.sslSessionCacheSize > 0) ahcConfig.sslSessionCacheSize else null)
-      .setSslSessionTimeout(if (ahcConfig.sslSessionTimeout > 0) ahcConfig.sslSessionTimeout else null)
+      .setSslSessionCacheSize(ahcConfig.sslSessionCacheSize)
+      .setSslSessionTimeout(ahcConfig.sslSessionTimeout)
       .setHttpClientCodecMaxInitialLineLength(ahcConfig.httpClientCodecMaxInitialLineLength)
       .setHttpClientCodecMaxHeaderSize(ahcConfig.httpClientCodecMaxHeaderSize)
       .setHttpClientCodecMaxChunkSize(ahcConfig.httpClientCodecMaxChunkSize)
-      .setKeepEncodingHeader(ahcConfig.keepEncodingHeader)
+      .setKeepEncodingHeader(true)
       .setWebSocketMaxFrameSize(ahcConfig.webSocketMaxFrameSize)
+      .setUseOpenSsl(ahcConfig.useOpenSsl)
+      .setUseNativeTransport(ahcConfig.useNativeTransport)
+      .setValidateResponseHeaders(false)
+      .setUsePooledMemory(ahcConfig.usePooledMemory)
+      .setTcpNoDelay(ahcConfig.tcpNoDelay)
+      .setSoReuseAddress(ahcConfig.soReuseAddress)
+      .setSoLinger(ahcConfig.soLinger)
+      .setSoSndBuf(ahcConfig.soSndBuf)
+      .setSoRcvBuf(ahcConfig.soRcvBuf)
 
-    val trustManagers = configuration.http.ssl.trustStore
-      .map(config => newTrustManagers(config.storeType, config.file, config.password, config.algorithm))
+    val keyManagerFactory = configuration.http.ssl.keyStore
+      .map(config => newKeyManagerFactory(config.storeType, config.file, config.password, config.algorithm))
 
-    val keyManagers = configuration.http.ssl.keyStore
-      .map(config => newKeyManagers(config.storeType, config.file, config.password, config.algorithm))
+    val trustManagerFactory = configuration.http.ssl.trustStore
+      .map(config => newTrustManagerFactory(config.storeType, config.file, config.password, config.algorithm))
 
-    if (trustManagers.isDefined || keyManagers.isDefined)
-      ahcConfigBuilder.setSSLContext(trustManagers, keyManagers)
+    if (keyManagerFactory.isDefined || trustManagerFactory.isDefined)
+      ahcConfigBuilder.setSslContext(ahcConfig, keyManagerFactory, trustManagerFactory)
 
     ahcConfigBuilder
   }
 
-  private val defaultAhcConfig = {
-    val applicationThreadPool = newApplicationThreadPool
-    val nioThreadPool = newNioThreadPool
+  private[this] val defaultAhcConfig = {
+    val eventLoopGroup = newEventLoopGroup("gatling-http-thread")
     val timer = newTimer
-    val channelPool = newChannelPool(timer)
-    val nettyConfig = newNettyConfig(nioThreadPool, timer, channelPool)
-    val ahcConfigBuilder = newAhcConfigBuilder(applicationThreadPool, nettyConfig)
+    val ahcConfigBuilder = newAhcConfigBuilder(eventLoopGroup, timer)
     ahcConfigBuilder.build
   }
 
@@ -170,32 +148,43 @@ private[gatling] class DefaultAhcFactory(system: ActorSystem, coreComponents: Co
 
   override def newAhc(session: Session): AsyncHttpClient = newAhc(Some(session))
 
-  private def newAhc(session: Option[Session]) = {
-    val ahcConfig = session.flatMap { session =>
+  private[this] def newAhc(session: Option[Session]) = {
+    val config = session.flatMap { session =>
 
-      val trustManagers = for {
-        file <- session(ConfigKeys.http.ssl.trustStore.File).asOption[String]
-        password <- session(ConfigKeys.http.ssl.trustStore.Password).asOption[String]
-        storeType = session(ConfigKeys.http.ssl.trustStore.Type).asOption[String]
-        algorithm = session(ConfigKeys.http.ssl.trustStore.Algorithm).asOption[String]
-      } yield newTrustManagers(storeType, file, password, algorithm)
-
-      val keyManagers = for {
+      val keyManagerFactory = for {
         file <- session(ConfigKeys.http.ssl.keyStore.File).asOption[String]
         password <- session(ConfigKeys.http.ssl.keyStore.Password).asOption[String]
-        storeType = session(ConfigKeys.http.ssl.keyStore.Type).asOption[String]
-        algorithm = session(ConfigKeys.http.ssl.keyStore.Algorithm).asOption[String]
-      } yield newKeyManagers(storeType, file, password, algorithm)
+      } yield {
+        val storeType = session(ConfigKeys.http.ssl.keyStore.Type).asOption[String]
+        val algorithm = session(ConfigKeys.http.ssl.keyStore.Algorithm).asOption[String]
+        newKeyManagerFactory(storeType, file, password, algorithm)
+      }
 
-      trustManagers.orElse(keyManagers).map { _ =>
-        logger.info(s"Setting a custom SSLContext for user ${session.userId}")
-        new AsyncHttpClientConfig.Builder(defaultAhcConfig).setSSLContext(trustManagers, keyManagers).build
+      val trustManagerFactory = for {
+        file <- session(ConfigKeys.http.ssl.trustStore.File).asOption[String]
+        password <- session(ConfigKeys.http.ssl.trustStore.Password).asOption[String]
+      } yield {
+        val storeType = session(ConfigKeys.http.ssl.trustStore.Type).asOption[String]
+        val algorithm = session(ConfigKeys.http.ssl.trustStore.Algorithm).asOption[String]
+        newTrustManagerFactory(storeType, file, password, algorithm)
+      }
+
+      trustManagerFactory.orElse(keyManagerFactory).map { _ =>
+        logger.info(s"Setting a custom SslContext for user ${session.userId}")
+        new DefaultAsyncHttpClientConfig.Builder(defaultAhcConfig).setSslContext(ahcConfig, keyManagerFactory, trustManagerFactory).build
       }
 
     }.getOrElse(defaultAhcConfig)
 
-    val client = new DefaultAsyncHttpClient(ahcConfig)
+    val client = new DefaultAsyncHttpClient(config)
     system.registerOnTermination(client.close())
     client
+  }
+
+  def newNameResolver(): ExtendedDnsNameResolver = {
+    val executor = newEventLoopGroup("gatling-dns-thread")
+    val resolver = new ExtendedDnsNameResolver(executor.next(), configuration)
+    system.registerOnTermination(resolver.close())
+    resolver
   }
 }

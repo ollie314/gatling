@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,18 @@ import com.typesafe.scalalogging.StrictLogging
 
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.session.{ Expression, Session }
-import io.gatling.core.validation.SuccessWrapper
+import io.gatling.commons.validation.SuccessWrapper
 
-class HttpCaches(implicit val configuration: GatlingConfiguration)
-    extends HttpContentCache
-    with PermanentRedirectCache
-    with DnsCache
+class HttpCaches(val configuration: GatlingConfiguration)
+    extends HttpContentCacheSupport
+    with PermanentRedirectCacheSupport
+    with DnsCacheSupport
+    with LocalAddressSupport
     with StrictLogging {
 
   val FlushCache: Expression[Session] = _.removeAll(
-    HttpContentCache.HttpContentCacheAttributeName,
-    DnsCache.DnsCacheAttributeName,
-    PermanentRedirectCache.HttpPermanentRedirectCacheAttributeName).success
+    HttpContentCacheSupport.HttpContentCacheAttributeName,
+    DnsCacheSupport.DnsCacheAttributeName,
+    PermanentRedirectCacheSupport.HttpPermanentRedirectCacheAttributeName
+  ).success
 }

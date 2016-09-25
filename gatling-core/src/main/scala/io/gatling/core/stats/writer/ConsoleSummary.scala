@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,10 +21,12 @@ import java.util.Date
 import scala.collection.mutable
 import scala.math.{ ceil, floor }
 
-import com.dongxiguo.fastring.Fastring.Implicits._
+import io.gatling.commons.stats.ErrorStats
+import io.gatling.commons.util.Collections._
+import io.gatling.commons.util.StringHelper._
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.stats.ErrorStats
-import io.gatling.core.util.StringHelper._
+
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 object ConsoleSummary {
 
@@ -35,13 +37,15 @@ object ConsoleSummary {
 
   def writeSubTitle(title: String): Fastring = fast"${("---- " + title + " ").rightPad(OutputLength, "-")}"
 
-  def apply(runDuration: Long,
-            usersCounters: mutable.Map[String, UserCounters],
-            globalRequestCounters: RequestCounters,
-            requestsCounters: mutable.Map[String, RequestCounters],
-            errorsCounters: mutable.Map[String, Int],
-            configuration: GatlingConfiguration,
-            time: Date = new Date) = {
+  def apply(
+    runDuration:           Long,
+    usersCounters:         mutable.Map[String, UserCounters],
+    globalRequestCounters: RequestCounters,
+    requestsCounters:      mutable.Map[String, RequestCounters],
+    errorsCounters:        mutable.Map[String, Int],
+    configuration:         GatlingConfiguration,
+    time:                  Date                                 = new Date
+  ) = {
 
       def writeUsersCounters(scenarioName: String, userCounters: UserCounters): Fastring = {
 
@@ -49,9 +53,9 @@ object ConsoleSummary {
 
         val width = OutputLength - 6 // []3d%
 
-        val donePercent = floor(100 * doneCount.toDouble / totalUserEstimate).toInt
-        val done = floor(width * doneCount.toDouble / totalUserEstimate).toInt
-        val active = ceil(width * activeCount.toDouble / totalUserEstimate).toInt
+        val donePercent = floor(100 * doneCount.toDouble / userCount).toInt
+        val done = floor(width * doneCount.toDouble / userCount).toInt
+        val active = ceil(width * activeCount.toDouble / userCount).toInt
         val waiting = width - done - active
 
         fast"""${writeSubTitle(scenarioName)}
@@ -76,7 +80,7 @@ object ConsoleSummary {
       def writeErrors: Fastring =
         if (errorsCounters.nonEmpty)
           fast"""${writeSubTitle("Errors")}
-${errorsCounters.toVector.sortBy(-_._2).map(err => ConsoleErrorsWriter.writeError(ErrorStats(err._1, err._2, globalRequestCounters.failedCount))).mkFastring(Eol)}
+${errorsCounters.toVector.sortBy(-_._2).map { case (message, count) => ConsoleErrorsWriter.writeError(ErrorStats(message, count, globalRequestCounters.failedCount)) }.mkFastring(Eol)}
 """
         else
           EmptyFastring
@@ -84,16 +88,17 @@ ${errorsCounters.toVector.sortBy(-_._2).map(err => ConsoleErrorsWriter.writeErro
     val text = fast"""
 $NewBlock
 ${ConsoleSummary.Iso8601DateTimeFormat.format(time)} ${(runDuration + "s elapsed").leftPad(OutputLength - Iso8601Format.length - 9)}
-${usersCounters.map { case (scenarioName, usersStats) => writeUsersCounters(scenarioName, usersStats) }.mkFastring(Eol)}
 ${writeSubTitle("Requests")}
 ${writeRequestsCounter("Global", globalRequestCounters)}
 $writeDetailedRequestsCounter
-$writeErrors$NewBlock
+$writeErrors
+${usersCounters.map { case (scenarioName, usersStats) => writeUsersCounters(scenarioName, usersStats) }.mkFastring(Eol)}
+$NewBlock
 """.toString
 
     val complete = {
-      val totalWaiting = usersCounters.values.map(_.waitingCount).sum
-      val totalRunning = usersCounters.values.map(_.activeCount).sum
+      val totalWaiting = usersCounters.values.sumBy(_.waitingCount)
+      val totalRunning = usersCounters.values.sumBy(_.activeCount)
       (totalWaiting == 0) && (totalRunning == 0)
     }
 

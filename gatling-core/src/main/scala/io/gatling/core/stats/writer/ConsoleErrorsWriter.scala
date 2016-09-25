@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,10 @@
  */
 package io.gatling.core.stats.writer
 
+import io.gatling.commons.stats.ErrorStats
+import io.gatling.commons.util.StringHelper._
+
 import com.dongxiguo.fastring.Fastring.Implicits._
-import io.gatling.core.stats.ErrorStats
-import io.gatling.core.util.StringHelper._
 
 /**
  * Object for writing errors statistics to the console.

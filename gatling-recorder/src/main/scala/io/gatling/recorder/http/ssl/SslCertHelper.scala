@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,19 +23,19 @@ import java.security.cert.X509Certificate
 import java.util.Date
 import javax.security.auth.x500.X500Principal
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-
 import scala.util.Try
 import scala.concurrent.duration._
 
-import com.typesafe.scalalogging.StrictLogging
-import io.gatling.core.util.Io.withCloseable
-import io.gatling.core.util.PathHelper._
+import io.gatling.commons.util.Io.withCloseable
+import io.gatling.commons.util.PathHelper._
+import io.gatling.commons.util.TimeHelper._
 
+import com.typesafe.scalalogging.StrictLogging
 import org.bouncycastle.cert.{ X509CertificateHolder, X509v3CertificateBuilder }
-import org.bouncycastle.cert.jcajce.{ JcaX509v1CertificateBuilder, JcaX509CertificateConverter, JcaX509CertificateHolder }
+import org.bouncycastle.cert.jcajce.{ JcaX509CertificateConverter, JcaX509CertificateHolder, JcaX509v1CertificateBuilder }
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.{ PEMKeyPair, PEMParser }
-import org.bouncycastle.openssl.jcajce.{ JcaPEMWriter, JcaPEMKeyConverter }
+import org.bouncycastle.openssl.jcajce.{ JcaPEMKeyConverter, JcaPEMWriter }
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
@@ -69,7 +69,7 @@ private[recorder] object SslCertUtil extends StrictLogging {
 
       def generateCACertificate(pair: KeyPair): X509CertificateHolder = {
         val dn = s"C=FR, ST=Val de marne, O=GatlingCA, CN=Gatling"
-        val now = System.currentTimeMillis
+        val now = nowMillis
 
         // has to be v1 for CA
         val certGen = new JcaX509v1CertificateBuilder(
@@ -78,7 +78,8 @@ private[recorder] object SslCertUtil extends StrictLogging {
           new Date(now), // notBefore
           new Date(now + 365.days.toMillis), // notAfter
           new X500Principal(dn), //subject
-          pair.getPublic) // publicKey
+          pair.getPublic
+        ) // publicKey
 
         val signer = newSigner(pair.getPrivate)
         certGen.build(signer)
@@ -122,14 +123,15 @@ private[recorder] object SslCertUtil extends StrictLogging {
 
   private def createServerCert(caCert: X509Certificate, caKey: PrivateKey, csr: PKCS10CertificationRequest): Try[X509Certificate] =
     Try {
-      val now = System.currentTimeMillis
+      val now = nowMillis
       val certBuilder = new X509v3CertificateBuilder(
         new JcaX509CertificateHolder(caCert).getSubject, // issuer
         BigInteger.valueOf(now), // serial
         new Date(now), // notBefore
         new Date(now + 1.day.toMillis), // notAfter
         csr.getSubject, //subject
-        csr.getSubjectPublicKeyInfo) // publicKey
+        csr.getSubjectPublicKeyInfo
+      ) // publicKey
       val signer = newSigner(caKey)
       certificateFromHolder(certBuilder.build(signer))
     }

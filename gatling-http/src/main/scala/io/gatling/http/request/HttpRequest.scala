@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,46 +15,37 @@
  */
 package io.gatling.http.request
 
+import io.gatling.commons.validation.Validation
+import io.gatling.core.CoreComponents
 import io.gatling.core.session._
-import io.gatling.core.validation._
 import io.gatling.http.check.HttpCheck
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.response.Response
 
-import org.asynchttpclient.{ RequestBuilder, SignatureCalculator, Request }
+import org.asynchttpclient.Request
 
 case class HttpRequestConfig(
-  checks: List[HttpCheck],
-  responseTransformer: Option[PartialFunction[Response, Response]],
-  extraInfoExtractor: Option[ExtraInfoExtractor],
-  maxRedirects: Option[Int],
-  throttled: Boolean,
-  silent: Option[Boolean],
-  followRedirect: Boolean,
+  checks:                List[HttpCheck],
+  responseTransformer:   Option[PartialFunction[Response, Response]],
+  extraInfoExtractor:    Option[ExtraInfoExtractor],
+  maxRedirects:          Option[Int],
+  throttled:             Boolean,
+  silent:                Option[Boolean],
+  followRedirect:        Boolean,
   discardResponseChunks: Boolean,
-  httpComponents: HttpComponents,
-  explicitResources: List[HttpRequestDef])
+  coreComponents:        CoreComponents,
+  httpComponents:        HttpComponents,
+  explicitResources:     List[HttpRequestDef]
+)
 
 case class HttpRequestDef(
     requestName: Expression[String],
-    ahcRequest: Expression[Request],
-    signatureCalculator: Option[Expression[SignatureCalculator]],
-    config: HttpRequestConfig) {
+    ahcRequest:  Expression[Request],
+    config:      HttpRequestConfig
+) {
 
-  def build(requestName: String, session: Session): Validation[HttpRequest] = {
-
-      def sign(request: Request, signatureCalculator: Option[SignatureCalculator]): Request =
-        signatureCalculator match {
-          case None     => request
-          case Some(sc) => new RequestBuilder(request).setSignatureCalculator(sc).build
-        }
-
-    for {
-      rawAhcRequest <- ahcRequest(session)
-      sc <- resolveOptionalExpression(signatureCalculator, session)
-      signedRequest = sign(rawAhcRequest, sc)
-    } yield HttpRequest(requestName, signedRequest, config)
-  }
+  def build(requestName: String, session: Session): Validation[HttpRequest] =
+    ahcRequest(session).map(HttpRequest(requestName, _, config))
 }
 
 case class HttpRequest(requestName: String, ahcRequest: Request, config: HttpRequestConfig)

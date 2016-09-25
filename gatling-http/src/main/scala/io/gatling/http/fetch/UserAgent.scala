@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,8 @@ object UserAgent {
   val IE = "MSIE"
   private val MsIeUserAgentRegex = "MSIE ([0-9]+.[0-9]+)".r
 
-  def getAgent(request: Request): Option[UserAgent] = {
-
-    if (request.getHeaders.containsKey(HeaderNames.UserAgent)) {
-      val agentStr = request.getHeaders.getFirstValue(HeaderNames.UserAgent)
-      parseFromHeader(agentStr)
-    } else
-      None
-  }
+  def getAgent(request: Request): Option[UserAgent] =
+    Option(request.getHeaders.get(HeaderNames.UserAgent)).flatMap(parseFromHeader)
 
   def parseFromHeader(userAgent: String): Option[UserAgent] =
     MsIeUserAgentRegex.findFirstMatchIn(userAgent) match {

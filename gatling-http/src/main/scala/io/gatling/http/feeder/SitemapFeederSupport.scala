@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package io.gatling.http.feeder
 
+import io.gatling.commons.validation._
 import io.gatling.core.feeder.RecordSeqFeederBuilder
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.util.Resource
-import io.gatling.core.validation.{ Failure, Success, Validation }
 
 /**
  * Feeder for [[http://www.sitemaps.org/protocol.html sitemap]] file format.
@@ -30,6 +30,6 @@ trait SitemapFeederSupport {
   def sitemap(resource: Validation[Resource]): RecordSeqFeederBuilder[String] =
     resource match {
       case Success(res)     => RecordSeqFeederBuilder(SitemapParser.parse(res))
-      case Failure(message) => throw new IllegalArgumentException(s"Could not locate sitemap file; $message")
+      case Failure(message) => throw new IllegalArgumentException(s"Could not locate sitemap file: $message")
     }
 }

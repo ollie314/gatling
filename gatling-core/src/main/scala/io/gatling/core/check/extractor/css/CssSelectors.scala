@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,22 +17,25 @@ package io.gatling.core.check.extractor.css
 
 import java.util.{ List => JList }
 
+import scala.collection._
+import scala.collection.JavaConversions.asScalaBuffer
+
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.cache.SelfLoadingThreadSafeCache
+import io.gatling.core.util.cache.Cache
+
+import com.github.benmanes.caffeine.cache.LoadingCache
 import jodd.csselly.{ CSSelly, CssSelector }
 import jodd.lagarto.dom.NodeSelector
 import jodd.log.LoggerFactory
 import jodd.log.impl.Slf4jLoggerFactory
-
-import scala.collection._
-import scala.collection.JavaConversions.asScalaBuffer
 
 class CssSelectors(implicit configuration: GatlingConfiguration) {
 
   LoggerFactory.setLoggerFactory(new Slf4jLoggerFactory)
 
   private val domBuilder = Jodd.newLagartoDomBuilder
-  private val selectorCache = SelfLoadingThreadSafeCache[String, JList[JList[CssSelector]]](configuration.core.extract.css.cacheMaxCapacity, CSSelly.parse)
+  private val selectorCache: LoadingCache[String, JList[JList[CssSelector]]] =
+    Cache.newConcurrentLoadingCache(configuration.core.extract.css.cacheMaxCapacity, CSSelly.parse)
 
   def parse(chars: Array[Char]) = new NodeSelector(domBuilder.parse(chars))
 

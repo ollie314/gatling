@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,40 +15,43 @@
  */
 package io.gatling.http.response
 
-import java.net.InetAddress
 import java.nio.charset.Charset
 import java.security.MessageDigest
 
-import scala.collection.mutable.ArrayBuffer
 import scala.math.max
 
+import io.gatling.commons.util.Collections._
+import io.gatling.commons.util.StringHelper.bytes2Hex
+import io.gatling.commons.util.TimeHelper.nowMillis
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.stats.message.ResponseTimings
-import io.gatling.core.util.StringHelper.bytes2Hex
-import io.gatling.core.util.TimeHelper.nowMillis
 import io.gatling.http.HeaderNames
 import io.gatling.http.check.HttpCheck
 import io.gatling.http.check.checksum.ChecksumCheck
 import io.gatling.http.util.HttpHelper.{ extractCharsetFromContentType, isCss, isHtml, isTxt }
 
 import com.typesafe.scalalogging.StrictLogging
+import io.netty.buffer.ByteBuf
+import io.netty.handler.codec.http.{ HttpHeaders, DefaultHttpHeaders }
 import org.asynchttpclient._
 import org.asynchttpclient.netty.request.NettyRequest
-import org.asynchttpclient.netty.NettyResponseBodyPart
-import org.jboss.netty.buffer.ChannelBuffer
+import org.asynchttpclient.netty.LazyResponseBodyPart
 
 object ResponseBuilder extends StrictLogging {
 
-  val EmptyHeaders = new FluentCaseInsensitiveStringsMap
+  val EmptyHeaders = new DefaultHttpHeaders
 
   val Identity: Response => Response = identity[Response]
 
   private val IsDebugEnabled = logger.underlying.isDebugEnabled
 
-  def newResponseBuilderFactory(checks: List[HttpCheck],
-                                responseTransformer: Option[PartialFunction[Response, Response]],
-                                discardResponseChunks: Boolean,
-                                inferHtmlResources: Boolean)(implicit configuration: GatlingConfiguration): ResponseBuilderFactory = {
+  def newResponseBuilderFactory(
+    checks:                List[HttpCheck],
+    responseTransformer:   Option[PartialFunction[Response, Response]],
+    discardResponseChunks: Boolean,
+    inferHtmlResources:    Boolean,
+    configuration:         GatlingConfiguration
+  ): ResponseBuilderFactory = {
 
     val checksumChecks = checks.collect {
       case checksumCheck: ChecksumCheck => checksumCheck
@@ -58,6 +61,8 @@ object ResponseBuilder extends StrictLogging {
 
     val storeBodyParts = IsDebugEnabled || !discardResponseChunks || responseBodyUsageStrategies.nonEmpty || responseTransformer.isDefined
 
+    val charset = configuration.core.charset
+
     request => new ResponseBuilder(
       request,
       checksumChecks,
@@ -65,30 +70,31 @@ object ResponseBuilder extends StrictLogging {
       responseTransformer,
       storeBodyParts,
       inferHtmlResources,
-      configuration.core.charset)
+      charset
+    )
   }
 }
 
-class ResponseBuilder(request: Request,
-                      checksumChecks: List[ChecksumCheck],
-                      bodyUsageStrategies: Set[ResponseBodyUsageStrategy],
-                      responseProcessor: Option[PartialFunction[Response, Response]],
-                      storeBodyParts: Boolean,
-                      inferHtmlResources: Boolean,
-                      charset: Charset) {
+class ResponseBuilder(
+    request:             Request,
+    checksumChecks:      List[ChecksumCheck],
+    bodyUsageStrategies: Set[ResponseBodyUsageStrategy],
+    responseTransformer: Option[PartialFunction[Response, Response]],
+    storeBodyParts:      Boolean,
+    inferHtmlResources:  Boolean,
+    charset:             Charset
+) {
 
   val computeChecksums = checksumChecks.nonEmpty
-  var storeHtmlOrCss = false
-  var firstByteSent = nowMillis
-  var lastByteSent = 0L
-  var firstByteReceived = 0L
-  var lastByteReceived = 0L
-  private var status: Option[HttpResponseStatus] = None
-  private var headers: FluentCaseInsensitiveStringsMap = ResponseBuilder.EmptyHeaders
-  private val chunks = new ArrayBuffer[ChannelBuffer]
-  private var digests: Map[String, MessageDigest] = initDigests()
-  private var nettyRequest: Option[NettyRequest] = None
-  private var remoteAddress: Option[InetAddress] = None
+  @volatile var storeHtmlOrCss: Boolean = _
+  @volatile var startTimestamp: Long = _
+  @volatile var endTimestamp: Long = _
+  @volatile private var _reset: Boolean = _
+  @volatile private var status: Option[HttpResponseStatus] = None
+  @volatile private var headers: HttpHeaders = ResponseBuilder.EmptyHeaders
+  @volatile private var chunks: List[ByteBuf] = Nil
+  @volatile private var digests: Map[String, MessageDigest] = initDigests()
+  @volatile private var nettyRequest: Option[NettyRequest] = None
 
   def initDigests(): Map[String, MessageDigest] =
     if (computeChecksums)
@@ -98,103 +104,108 @@ class ResponseBuilder(request: Request,
     else
       Map.empty[String, MessageDigest]
 
-  def updateFirstByteSent(): Unit = firstByteSent = nowMillis
+  def updateStartTimestamp(): Unit =
+    startTimestamp = nowMillis
+
+  def updateEndTimestamp(): Unit =
+    endTimestamp = nowMillis
 
   def setNettyRequest(nettyRequest: NettyRequest) =
     this.nettyRequest = Some(nettyRequest)
 
-  def setRemoteAddress(remoteAddress: InetAddress) =
-    this.remoteAddress = Some(remoteAddress)
+  def markReset(): Unit =
+    _reset = true
 
-  def reset(): Unit = {
-    firstByteSent = nowMillis
-    lastByteSent = 0L
-    firstByteReceived = 0L
-    lastByteReceived = 0L
-    status = None
-    headers = ResponseBuilder.EmptyHeaders
-    chunks.clear()
-    digests = initDigests()
+  def doReset(): Unit =
+    if (_reset) {
+      _reset = false
+      endTimestamp = 0L
+      status = None
+      headers = ResponseBuilder.EmptyHeaders
+      resetChunks()
+      digests = initDigests()
+    }
+
+  private def resetChunks(): Unit = {
+    chunks.foreach(_.release())
+    chunks = Nil
   }
-
-  def updateLastByteSent(): Unit = lastByteSent = nowMillis
-
-  def updateLastByteReceived(): Unit = lastByteReceived = nowMillis
 
   def accumulate(status: HttpResponseStatus): Unit = {
     this.status = Some(status)
-    val now = nowMillis
-    firstByteReceived = now
-    lastByteReceived = now
+    updateEndTimestamp()
   }
 
   def accumulate(headers: HttpResponseHeaders): Unit = {
     this.headers = headers.getHeaders
     storeHtmlOrCss = inferHtmlResources && (isHtml(headers.getHeaders) || isCss(headers.getHeaders))
-    updateLastByteReceived()
   }
 
   def accumulate(bodyPart: HttpResponseBodyPart): Unit = {
 
-    updateLastByteReceived()
+    updateEndTimestamp()
 
-    val channelBuffer = bodyPart.asInstanceOf[NettyResponseBodyPart].getChannelBuffer
+    val byteBuf = bodyPart.asInstanceOf[LazyResponseBodyPart].getBuf
 
-    if (storeBodyParts || storeHtmlOrCss)
-      chunks += channelBuffer
+    if (byteBuf.readableBytes > 0) {
+      if (storeBodyParts || storeHtmlOrCss) {
+        chunks = byteBuf.retain() :: chunks // beware, we have to retain!
+      }
 
-    if (computeChecksums)
-      digests.values.foreach(_.update(bodyPart.getBodyByteBuffer))
+      if (computeChecksums)
+        for {
+          nioBuffer <- byteBuf.nioBuffers
+          digest <- digests.values
+        } digest.update(nioBuffer.duplicate)
+    }
   }
 
   def build: Response = {
 
     // time measurement is imprecise due to multi-core nature
     // moreover, ProgressListener might be called AFTER ChannelHandler methods 
-    // ensure request doesn't end before starting
-    lastByteSent = max(lastByteSent, firstByteSent)
-    // ensure response doesn't start before request ends
-    firstByteReceived = max(firstByteReceived, lastByteSent)
     // ensure response doesn't end before starting
-    lastByteReceived = max(lastByteReceived, firstByteReceived)
+    endTimestamp = max(endTimestamp, startTimestamp)
 
     val checksums = digests.foldLeft(Map.empty[String, String]) { (map, entry) =>
       val (algo, md) = entry
       map + (algo -> bytes2Hex(md.digest))
     }
 
-    val bodyLength = chunks.foldLeft(0) { (sum, chunk) =>
-      sum + chunk.readableBytes
-    }
+    val bodyLength = chunks.sumBy(_.readableBytes)
 
     val bodyUsages = bodyUsageStrategies.map(_.bodyUsage(bodyLength))
 
-    val resolvedCharset = Option(headers.getFirstValue(HeaderNames.ContentType))
+    val resolvedCharset = Option(headers.get(HeaderNames.ContentType))
       .flatMap(extractCharsetFromContentType)
       .getOrElse(charset)
 
+    val properlyOrderedChunks = chunks.reverse
     val body: ResponseBody =
-      if (chunks.isEmpty)
+      if (properlyOrderedChunks.isEmpty)
         NoResponseBody
 
       else if (bodyUsages.contains(ByteArrayResponseBodyUsage))
-        ByteArrayResponseBody(chunks, resolvedCharset)
+        ByteArrayResponseBody(properlyOrderedChunks, resolvedCharset)
 
       else if (bodyUsages.contains(InputStreamResponseBodyUsage) || bodyUsages.isEmpty)
-        InputStreamResponseBody(chunks, resolvedCharset)
+        InputStreamResponseBody(properlyOrderedChunks, resolvedCharset)
 
       else if (isTxt(headers))
-        StringResponseBody(chunks, resolvedCharset)
+        StringResponseBody(properlyOrderedChunks, resolvedCharset)
 
       else
-        ByteArrayResponseBody(chunks, resolvedCharset)
+        ByteArrayResponseBody(properlyOrderedChunks, resolvedCharset)
 
-    val timings = ResponseTimings(firstByteSent, lastByteSent, firstByteReceived, lastByteReceived)
-    val rawResponse = HttpResponse(request, nettyRequest, remoteAddress, status, headers, body, checksums, bodyLength, resolvedCharset, timings)
+    resetChunks()
+    val rawResponse = HttpResponse(request, nettyRequest, status, headers, body, checksums, bodyLength, resolvedCharset, ResponseTimings(startTimestamp, endTimestamp))
 
-    responseProcessor match {
-      case None            => rawResponse
-      case Some(processor) => processor.applyOrElse(rawResponse, ResponseBuilder.Identity)
+    responseTransformer match {
+      case None              => rawResponse
+      case Some(transformer) => transformer.applyOrElse(rawResponse, ResponseBuilder.Identity)
     }
   }
+
+  def buildSafeResponse: Response =
+    HttpResponse(request, nettyRequest, status, headers, NoResponseBody, Map.empty, 0, charset, ResponseTimings(startTimestamp, endTimestamp))
 }

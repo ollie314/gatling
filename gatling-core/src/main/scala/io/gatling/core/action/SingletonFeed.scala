@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
  */
 package io.gatling.core.action
 
-import akka.actor.{ Props, ActorRef }
+import io.gatling.commons.validation._
 import io.gatling.core.akka.BaseActor
-import io.gatling.core.controller.ForceStop
+import io.gatling.core.controller.ControllerCommand
 import io.gatling.core.feeder.{ Feeder, Record }
 import io.gatling.core.session.{ Expression, Session }
-import io.gatling.core.validation.{ Failure, FailureWrapper, Success, SuccessWrapper, Validation }
+
+import akka.actor.{ Props, ActorRef }
 
 object SingletonFeed {
   def props[T](feeder: Feeder[T]) = Props(new SingletonFeed(feeder))
@@ -39,7 +40,7 @@ class SingletonFeed[T](val feeder: Feeder[T]) extends BaseActor {
           else
             feeder.next().success
 
-        def injectRecords(numberOfRecords: Int): Validation[Session] =
+        def feedRecords(numberOfRecords: Int): Validation[Session] =
           numberOfRecords match {
             case 1 =>
               pollRecord().map(session.setAll)
@@ -53,11 +54,11 @@ class SingletonFeed[T](val feeder: Feeder[T]) extends BaseActor {
             case n => s"$n is not a valid number of records".failure
           }
 
-      val newSession = number(session).flatMap(injectRecords) match {
+      val newSession = number(session).flatMap(feedRecords) match {
         case Success(s) => s
         case Failure(message) =>
-          logger.error(s"Injection failed: $message, please report.")
-          controller ! ForceStop(Some(new IllegalStateException(message)))
+          logger.error(s"Feed failed: $message, please report.")
+          controller ! ControllerCommand.ForceStop(Some(new IllegalStateException(message)))
           session
       }
 
@@ -65,4 +66,4 @@ class SingletonFeed[T](val feeder: Feeder[T]) extends BaseActor {
   }
 }
 
-case class FeedMessage(session: Session, number: Expression[Int], controller: ActorRef, next: ActorRef)
+case class FeedMessage(session: Session, number: Expression[Int], controller: ActorRef, next: Action)

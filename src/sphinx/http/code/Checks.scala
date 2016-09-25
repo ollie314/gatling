@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import io.gatling.commons.validation._
 import io.gatling.core.Predef._
-import io.gatling.core.validation._
 import io.gatling.http.Predef._
 
 class Checks {
@@ -134,6 +135,13 @@ class Checks {
     //#in
     status.in(200, 304)
     //#in
+
+    //#validator
+    trait Validator[A] {
+      def name: String
+      def apply(actual: Option[A]): Validation[Option[A]]
+    }
+    //#validator
 
     //#regex-count-is
     regex("""https://(.*)""").count.is(5)

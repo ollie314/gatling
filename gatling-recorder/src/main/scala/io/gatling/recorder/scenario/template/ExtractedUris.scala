@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ package io.gatling.recorder.scenario.template
 
 import java.net.URL
 
-import io.gatling.core.util.StringHelper._
+import io.gatling.commons.util.StringHelper._
 import io.gatling.recorder.scenario.{ RequestElement, ScenarioElement }
+
 import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[scenario] case class Value(name: String, value: String)
@@ -37,25 +38,23 @@ private[scenario] case class SchemeHost(scheme: String, host: String)
  * @param scenarioElements - contains uris to extracts common parts from
  */
 private[scenario] class ExtractedUris(scenarioElements: Seq[ScenarioElement]) {
-  var requestElements = scenarioElements.collect { case elem: RequestElement => elem }
-  val uris = requestElements.map(_.uri) ++
-    requestElements.map(_.embeddedResources).reduce(_ ++ _).map(_.url) ++
-    requestElements.map(_.nonEmbeddedResources).reduce(_ ++ _).map(_.uri)
-
-  val urls = uris.map(uri => new URL(uri)).toList
   var values: List[Value] = Nil
 
-  val urlGroups = urls.groupBy(url => SchemeHost(url.getProtocol, url.getHost)).toMap
+  private val renders: Map[String, Fastring] = {
+    val requestElements = scenarioElements.collect { case elem: RequestElement => elem }
+    val uris = requestElements.map(_.uri) ++
+      requestElements.map(_.embeddedResources).reduce(_ ++ _).map(_.url) ++
+      requestElements.map(_.nonEmbeddedResources).reduce(_ ++ _).map(_.uri)
+    val urls = uris.map(uri => new URL(uri)).toList
+    val urlGroups: Map[String, List[URL]] = urls.groupBy(url => url.getHost)
 
-  val renders = {
     val maxNbDigits = urlGroups.size.toString.length
 
-    urlGroups.zipWithIndex.map {
-      case (keyVal, index) =>
-        val urls = keyVal._2
+    urlGroups.zipWithIndex.flatMap {
+      case ((_, urls), index) =>
 
         val valName = "uri" + (index + 1).toString.leftPad(maxNbDigits, "0")
-        if (urls.size > 1 && schemesPortAreSame(urls)) {
+        if (urls.size == 1 || schemesPortAreSame(urls)) {
           val paths = urls.map(url => url.getPath)
           val longestCommonPath = longestCommonRoot(paths)
 
@@ -68,7 +67,7 @@ private[scenario] class ExtractedUris(scenarioElements: Seq[ScenarioElement]) {
 
           extractCommonHostUrls(urls, valName)
         }
-    }.flatten.toMap
+    }
   }
 
   private def extractCommonHostUrls(urls: List[URL], valName: String): List[(String, Fastring)] =
@@ -78,12 +77,12 @@ private[scenario] class ExtractedUris(scenarioElements: Seq[ScenarioElement]) {
   private def extractLongestPathUrls(urls: List[URL], longestCommonPath: String, valName: String): List[(String, Fastring)] =
     urls.map(url => {
       val restPath = url.getPath.substring(longestCommonPath.length)
-      (url.toString, fast"$valName + ${value(s"${restPath}${query(url)}")}")
+      (url.toString, fast"$valName + ${value(s"$restPath${query(url)}")}")
     })
 
   private def longestCommonRoot(pathsStrs: List[String]): String = {
       def longestCommonRoot2(sa1: Array[String], sa2: Array[String]) = {
-        val minLen = sa1.size.min(sa2.size)
+        val minLen = math.min(sa1.length, sa2.length)
         var p = 0
         while (p < minLen && sa1(p) == sa2(p)) {
           p += 1

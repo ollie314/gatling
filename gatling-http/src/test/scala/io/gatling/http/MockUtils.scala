@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,26 @@
  */
 package io.gatling.http
 
+import io.gatling.core.CoreComponents
 import io.gatling.core.session.Session
-import io.gatling.http.ahc.{ HttpEngine, HttpTx }
+import io.gatling.http.action.sync.HttpTx
+import io.gatling.http.ahc.{ HttpEngine, ResponseProcessor }
 import io.gatling.http.cache.HttpCaches
-import io.gatling.http.protocol.{ HttpComponents, HttpProtocolRequestPart, HttpProtocol }
-import io.gatling.http.request.{ HttpRequestConfig, HttpRequest }
+import io.gatling.http.protocol.{ HttpComponents, HttpProtocol, HttpProtocolRequestPart }
+import io.gatling.http.request.{ HttpRequest, HttpRequestConfig }
 
+import io.netty.handler.codec.http.DefaultHttpHeaders
 import org.asynchttpclient.Request
 import org.asynchttpclient.uri.Uri
 import org.mockito.Mockito._
-import org.scalatest.mock.MockitoSugar
+import org.scalatest.mockito.MockitoSugar
 
 object MockUtils extends MockitoSugar {
 
   def txTo(uri: String, session: Session, redirectCount: Int = 0, cache: Boolean = false) = {
     val protocol = mock[HttpProtocol]
-    val httpComponents = HttpComponents(protocol, mock[HttpEngine], mock[HttpCaches])
+    val coreComponents = mock[CoreComponents]
+    val httpComponents = HttpComponents(protocol, mock[HttpEngine], mock[HttpCaches], mock[ResponseProcessor])
     val request = mock[Request]
     val requestPart = mock[HttpProtocolRequestPart]
 
@@ -38,9 +42,11 @@ object MockUtils extends MockitoSugar {
     when(requestPart.silentURI) thenReturn None
     when(requestPart.silentResources) thenReturn false
     when(request.getUri) thenReturn Uri.create(uri)
+    when(request.getHeaders) thenReturn new DefaultHttpHeaders
     when(protocol.requestPart) thenReturn requestPart
 
-    HttpTx(session,
+    HttpTx(
+      session,
       request = HttpRequest(
         requestName = "mockHttpTx",
         ahcRequest = request,
@@ -53,10 +59,14 @@ object MockUtils extends MockitoSugar {
           silent = None,
           followRedirect = true,
           discardResponseChunks = true,
+          coreComponents = coreComponents,
           httpComponents = httpComponents,
-          explicitResources = Nil)),
+          explicitResources = Nil
+        )
+      ),
       responseBuilderFactory = null,
       next = null,
-      redirectCount = redirectCount)
+      redirectCount = redirectCount
+    )
   }
 }

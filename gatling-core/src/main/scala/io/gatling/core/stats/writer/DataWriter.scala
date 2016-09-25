@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,9 @@
  */
 package io.gatling.core.stats.writer
 
-import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 import akka.actor.FSM.NullFunction
-import io.gatling.core.util.TypeHelper.typeMatches
 
 /**
  * Abstract class for all DataWriters
@@ -27,7 +25,7 @@ import io.gatling.core.util.TypeHelper.typeMatches
  * These writers are responsible for writing the logs that will be read to
  * generate the statistics
  */
-abstract class DataWriter[T <: DataWriterData: ClassTag] extends DataWriterFSM {
+abstract class DataWriter[T <: DataWriterData] extends DataWriterFSM {
 
   startWith(Uninitialized, NoData)
 
@@ -58,20 +56,20 @@ abstract class DataWriter[T <: DataWriterData: ClassTag] extends DataWriterFSM {
   }
 
   when(Initialized) {
-    case Event(Flush, data: Any) if typeMatches[T](data) =>
+    case Event(Flush, data: Any) =>
       onFlush(data.asInstanceOf[T])
       stay()
 
-    case Event(Stop, data: Any) if typeMatches[T](data) =>
+    case Event(Stop, data: Any) =>
       onStop(data.asInstanceOf[T])
       sender ! true
       goto(Terminated) using NoData
 
-    case Event(Crash(cause), data: Any) if typeMatches[T](data) =>
+    case Event(Crash(cause), data: Any) =>
       onCrash(cause, data.asInstanceOf[T])
       goto(Terminated) using NoData
 
-    case Event(message: LoadEventMessage, data: Any) if typeMatches[T](data) =>
+    case Event(message: LoadEventMessage, data: Any) =>
       onMessage(message, data.asInstanceOf[T])
       stay()
   }

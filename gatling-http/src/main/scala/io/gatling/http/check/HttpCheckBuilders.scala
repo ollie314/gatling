@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
  */
 package io.gatling.http.check
 
+import io.gatling.commons.validation._
 import io.gatling.core.check.{ Check, Extender, Preparer }
-import io.gatling.core.validation.SuccessWrapper
 import io.gatling.http.check.HttpCheckScope._
 import io.gatling.http.response._
 
@@ -35,8 +35,8 @@ object HttpCheckBuilders {
   val BytesBodyExtender = bodyExtender(ByteArrayResponseBodyUsageStrategy)
   val TimeExtender = extender(Body, None)
 
-  val PassThroughResponsePreparer: Preparer[Response, Response] = (r: Response) => r.success
-  val ResponseBodyStringPreparer: Preparer[Response, String] = (response: Response) => response.body.string.success
-  val ResponseBodyBytesPreparer: Preparer[Response, Array[Byte]] = (response: Response) => response.body.bytes.success
-  val UrlStringPreparer: Preparer[Response, String] = (response: Response) => response.request.getUrl.success
+  val PassThroughResponsePreparer: Preparer[Response, Response] = _.success
+  val ResponseBodyStringPreparer: Preparer[Response, String] = _.body.string.success
+  val ResponseBodyBytesPreparer: Preparer[Response, Array[Byte]] = _.body.bytes.success
+  val UrlStringPreparer: Preparer[Response, String] = _.request.getUrl.success
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ object HtmlParser extends StrictLogging {
   val DataAttribute = "data".toCharArray
   val HrefAttribute = "href".toCharArray
   val IconAttributeName = "icon".toCharArray
+  val ShortcutIconAttributeName = "shortcut icon".toCharArray
   val RelAttribute = "rel".toCharArray
   val SrcAttribute = "src".toCharArray
   val StyleAttribute = StyleTagName
@@ -69,9 +70,9 @@ object HtmlParser extends StrictLogging {
       logger.debug(s"""HTML parser crashed, there's a chance your page wasn't proper HTML:
 >>>>>>>>>>>>>>>>>>>>>>>
 $htmlContent
-<<<<<<<<<<<<<<<<<<<<<<<""")
+<<<<<<<<<<<<<<<<<<<<<<<""", e)
     else
-      logger.error("HTML parser crashed, there's a chance your page wasn't proper HTML, enable debug on 'io.gatling.http.fetch' logger to get the HTML content", e)
+      logger.error(s"HTML parser crashed: ${e.getMessage}, there's a chance your page wasn't proper HTML, enable debug on 'io.gatling.http.fetch' logger to get the HTML content", e)
 }
 
 class HtmlParser extends StrictLogging {
@@ -142,12 +143,15 @@ class HtmlParser extends StrictLogging {
                   base = Option(tag.getAttributeValue(HrefAttribute)).map(_.toString)
 
                 } else if (tag.nameEquals(LinkTagName)) {
-                  val rel = tag.getAttributeValue(RelAttribute)
-
-                  if (TagUtil.equalsToLowercase(rel, StylesheetAttributeName))
-                    addResource(tag, HrefAttribute, CssRawResource)
-                  else if (TagUtil.equalsToLowercase(rel, IconAttributeName))
-                    addResource(tag, HrefAttribute, RegularRawResource)
+                  Option(tag.getAttributeValue(RelAttribute)) match {
+                    case Some(rel) if TagUtil.equalsToLowercase(rel, StylesheetAttributeName) =>
+                      addResource(tag, HrefAttribute, CssRawResource)
+                    case Some(rel) if TagUtil.equalsToLowercase(rel, IconAttributeName) || TagUtil.equalsToLowercase(rel, ShortcutIconAttributeName) =>
+                      addResource(tag, HrefAttribute, RegularRawResource)
+                    case None =>
+                      logger.error("Malformed HTML: <link> tag without rel attribute")
+                    case _ =>
+                  }
 
                 } else if (tag.nameEquals(ImgTagName) ||
                   tag.nameEquals(BgsoundTagName) ||

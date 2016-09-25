@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package io.gatling.core.pause
 import scala.concurrent.duration.Duration
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
-import io.gatling.core.session.{ Expression, ExpressionWrapper }
+import io.gatling.core.session._
 
 sealed abstract class PauseType {
-  def generator(duration: Duration): Expression[Long] = generator(duration.expression)
+  def generator(duration: Duration): Expression[Long] = generator(duration.expressionSuccess)
   def generator(duration: Expression[Duration]): Expression[Long]
 }
 
@@ -45,7 +45,7 @@ object Exponential extends PauseType {
   }
 
   def generator(duration: Expression[Duration]) = duration.map {
-    duration => math.round(nextValue * duration.toMillis)
+    duration => (nextValue * duration.toMillis).round
   }
 }
 
@@ -74,7 +74,7 @@ case class UniformPercentage(plusOrMinus: Double) extends PauseType {
 
   def generator(duration: Expression[Duration]) = duration.map { d =>
     val mean = d.toMillis
-    val halfWidth = math.round(mean * plusOrMinusPercent)
+    val halfWidth = (mean * plusOrMinusPercent).round
     val least = math.max(0L, mean - halfWidth)
     val bound = mean + halfWidth + 1
     ThreadLocalRandom.current.nextLong(least, bound)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
  */
 package io.gatling.http.response
 
-import java.net.InetAddress
 import java.nio.charset.Charset
 
 import scala.collection.JavaConversions.asScalaBuffer
 
+import io.netty.handler.codec.http.HttpHeaders
 import org.asynchttpclient.cookie.{ Cookie, CookieDecoder }
 import org.asynchttpclient.netty.request.NettyRequest
-import org.asynchttpclient.{ FluentCaseInsensitiveStringsMap, HttpResponseStatus, Request => AHCRequest }
+import org.asynchttpclient.{ HttpResponseStatus, Request => AHCRequest }
 import org.asynchttpclient.uri.Uri
 
 import io.gatling.core.stats.message.ResponseTimings
@@ -34,7 +34,6 @@ abstract class Response {
 
   def request: AHCRequest
   def nettyRequest: Option[NettyRequest]
-  def remoteAddress: Option[InetAddress]
   def isReceived: Boolean
 
   def status: Option[HttpResponseStatus]
@@ -43,7 +42,7 @@ abstract class Response {
   def isRedirect: Boolean
 
   def header(name: String): Option[String]
-  def headers: FluentCaseInsensitiveStringsMap
+  def headers: HttpHeaders
   def headers(name: String): Seq[String]
   def cookies: List[Cookie]
 
@@ -62,16 +61,16 @@ abstract class Response {
 }
 
 case class HttpResponse(
-    request: AHCRequest,
+    request:      AHCRequest,
     nettyRequest: Option[NettyRequest],
-    remoteAddress: Option[InetAddress],
-    status: Option[HttpResponseStatus],
-    headers: FluentCaseInsensitiveStringsMap,
-    body: ResponseBody,
-    checksums: Map[String, String],
-    bodyLength: Int,
-    charset: Charset,
-    timings: ResponseTimings) extends Response {
+    status:       Option[HttpResponseStatus],
+    headers:      HttpHeaders,
+    body:         ResponseBody,
+    checksums:    Map[String, String],
+    bodyLength:   Int,
+    charset:      Charset,
+    timings:      ResponseTimings
+) extends Response {
 
   def isReceived = status.isDefined
   val statusCode = status.map(_.getStatusCode)
@@ -82,13 +81,10 @@ case class HttpResponse(
   }
   def uri = status.map(_.getUri)
 
-  def header(name: String): Option[String] = Option(headers.getFirstValue(name))
-  def headers(name: String): Seq[String] = Option(headers.get(name)) match {
-    case Some(h) => h.toSeq
-    case _       => Nil
-  }
+  def header(name: String): Option[String] = Option(headers.get(name))
+  def headers(name: String): Seq[String] = headers.getAll(name)
 
-  lazy val cookies = headers.get(HeaderNames.SetCookie).flatMap(cookie => Option(CookieDecoder.decode(cookie))).toList
+  lazy val cookies = headers.getAll(HeaderNames.SetCookie).flatMap(cookie => Option(CookieDecoder.decode(cookie))).toList
 
   def checksum(algorithm: String) = checksums.get(algorithm)
   def hasResponseBody = bodyLength != 0
@@ -98,7 +94,6 @@ class ResponseWrapper(delegate: Response) extends Response {
 
   def request: AHCRequest = delegate.request
   def nettyRequest: Option[NettyRequest] = delegate.nettyRequest
-  def remoteAddress: Option[InetAddress] = delegate.remoteAddress
   def isReceived = delegate.isReceived
 
   def status = delegate.status

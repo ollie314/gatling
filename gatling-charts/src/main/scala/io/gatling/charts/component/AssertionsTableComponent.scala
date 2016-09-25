@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
  */
 package io.gatling.charts.component
 
-import com.dongxiguo.fastring.Fastring.Implicits._
+import io.gatling.commons.stats.assertion.AssertionResult
+import io.gatling.commons.util.StringHelper._
+import io.gatling.commons.util.HtmlHelper.HtmlRichString
 
-import io.gatling.core.assertion.AssertionResult
-import io.gatling.core.util.StringHelper._
-import io.gatling.core.util.HtmlHelper.HtmlRichString
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 private[charts] class AssertionsTableComponent(assertionResults: List[AssertionResult]) extends Component {
 

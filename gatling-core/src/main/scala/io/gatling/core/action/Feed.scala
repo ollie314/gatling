@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,14 @@
 package io.gatling.core.action
 
 import io.gatling.core.stats.StatsEngine
+import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.util.NameGen
 
-import akka.actor.{ Props, ActorRef }
-import io.gatling.core.session.Session
-import io.gatling.core.session.Expression
+import akka.actor.ActorRef
 
-object Feed {
-  def props(singleton: ActorRef, controller: ActorRef, number: Expression[Int], statsEngine: StatsEngine, next: ActorRef) =
-    Props(new Feed(singleton, controller, number, statsEngine, next))
-}
+class Feed(singleton: ActorRef, number: Expression[Int], controller: ActorRef, val statsEngine: StatsEngine, val next: Action) extends ExitableAction with NameGen {
 
-class Feed(singleton: ActorRef, controller: ActorRef, number: Expression[Int], val statsEngine: StatsEngine, val next: ActorRef) extends Action with Interruptable {
+  override val name: String = genName("feed")
 
-  def execute(session: Session): Unit = singleton ! FeedMessage(session, number, controller, next)
+  override def execute(session: Session): Unit = singleton ! FeedMessage(session, number, controller, next)
 }

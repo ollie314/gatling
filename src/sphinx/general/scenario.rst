@@ -42,8 +42,17 @@ This can be used for manually debugging or editing the :ref:`Session <expression
 .. includecode:: code/Scenario.scala#session-lambda
 
 .. note::
-  For those who wonder how the plumbing works and how you can return a ``Session`` instead of of ``Validation[Session]`` in the above examples,
+  For those who wonder how the plumbing works and how you can return a ``Session`` instead of ``Validation[Session]`` in the above examples,
   that's thanks to an implicit conversion.
+
+.. warning::
+  Gatling DSL components are immutable ``ActionBuilder``\(s) that have to be chained altogether and are only built once on startup.
+  The results is a workflow chain of ``Action``\(s).
+  These builders don't do anything by themselves, they don't trigger any side effect, they are just definitions.
+  As a result, creating such DSL components at runtime in functions is completely meaningless.
+  If you want conditional paths in your execution flow, use the proper DSL components (``doIf``, ``randomSwitch``, etc)
+
+.. includecode:: code/Scenario.scala#session-improper
 
 .. _scenario-exec-function-flatten:
 
@@ -196,15 +205,21 @@ Conditional statements
 
 Gatling's DSL has conditional execution support.
 If you want to execute a specific chain of actions only when some condition is satisfied, you can do so using the ``doIf`` method.
-It will check if a value in the session equals the one you specified:
 
-.. includecode:: code/Scenario.scala#doIf-expr
+.. includecode:: code/Scenario.scala#doIf
 
-As you can see, the executed actions if the condition is false are optional.
-
-If you want to test conditions other than equality, you'll have to use an ``Expression[Boolean]`` to write it:
+If you want to test complex conditions, you'll have to pass an ``Expression[Boolean]``:
 
 .. includecode:: code/Scenario.scala#doIf-session
+
+.. _scenario-doifequals:
+
+``doIfEquals``
+^^^^^^^^^^^^^^
+
+Îf your test condition is simply to compare two values, you can simply use ``doIfEquals``:
+
+.. includecode:: code/Scenario.scala#doIfEquals
 
 .. _scenario-doiforelse:
 
@@ -222,7 +237,7 @@ Similar to ``doIf``, but with a fallback if the condition evaluates to false.
 ``doIfEqualsOrElse``
 ^^^^^^^^^^^^^^^^^^^^
 
-Similar to ``doIfOrElse`` but tests the equality of an expected and an actual value.
+Similar to ``doIfEquals`` but with a fallback if the condition evaluates to false.
 
 .. includecode:: code/Scenario.scala#doIfEqualsOrElse
 
@@ -335,6 +350,7 @@ Groups definition
 
 Create group of requests to model process or requests in a same page.
 Groups can be nested.
+Beware that group names mustn't contain commas.
 
 .. _scenario-protocols:
 

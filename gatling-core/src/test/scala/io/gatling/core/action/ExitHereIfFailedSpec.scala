@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,28 @@
  */
 package io.gatling.core.action
 
-import akka.actor.ActorRef
-import akka.testkit._
 import io.gatling.AkkaSpec
 import io.gatling.core.session.Session
-import io.gatling.core.stats.DefaultStatsEngine
+import io.gatling.core.stats.DataWritersStatsEngine
 import io.gatling.core.stats.writer.GroupMessage
+
+import akka.testkit._
 
 class ExitHereIfFailedSpec extends AkkaSpec {
 
-  def createExitHereIfFailed(exitProbe: TestProbe, datawriterProbe: TestProbe) =
-    TestActorRef(ExitHereIfFailed.props(exitProbe.ref, new DefaultStatsEngine(system, List(datawriterProbe.ref)), self))
+  val nextAction = mock[Action]
+
+  def newExitHereIfFailed(exitProbe: TestProbe, datawriterProbe: TestProbe) = {
+    val statsEngine = new DataWritersStatsEngine(system, List(datawriterProbe.ref))
+    val exit = new ActorDelegatingAction("exit", exitProbe.ref)
+
+    new ExitHereIfFailed(exit, statsEngine, new ActorDelegatingAction("next", self))
+  }
 
   "ExitHereIfFailed" should "send the session to the next actor if the session was not failed" in {
     val exitProbe = TestProbe()
     val dataWriterProbe = TestProbe()
-    val exitHereIfFailed = createExitHereIfFailed(exitProbe, dataWriterProbe)
+    val exitHereIfFailed = newExitHereIfFailed(exitProbe, dataWriterProbe)
 
     val session = Session("scenario", 0)
 
@@ -43,9 +49,9 @@ class ExitHereIfFailedSpec extends AkkaSpec {
   it should "end the scenario by sending the session to the user end if the session failed" in {
     val exitProbe = TestProbe()
     val dataWriterProbe = TestProbe()
-    val exitHereIfFailed = createExitHereIfFailed(exitProbe, dataWriterProbe)
+    val exitHereIfFailed = newExitHereIfFailed(exitProbe, dataWriterProbe)
 
-    val session = Session("scenario", 0).enterTryMax("loop", ActorRef.noSender).markAsFailed
+    val session = Session("scenario", 0).enterTryMax("loop", nextAction).markAsFailed
 
     exitHereIfFailed ! session
 
@@ -56,7 +62,7 @@ class ExitHereIfFailedSpec extends AkkaSpec {
   it should "also log a group end if the user was inside a group" in {
     val exitProbe = TestProbe()
     val dataWriterProbe = TestProbe()
-    val exitHereIfFailed = createExitHereIfFailed(exitProbe, dataWriterProbe)
+    val exitHereIfFailed = newExitHereIfFailed(exitProbe, dataWriterProbe)
 
     val session = Session("scenario", 0).enterGroup("group").markAsFailed
 

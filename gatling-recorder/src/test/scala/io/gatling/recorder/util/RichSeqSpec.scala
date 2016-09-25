@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ class RichSeqSpec extends BaseSpec {
       List(1 -> 200),
       List(2 -> 304, 3 -> 304, 4 -> 200),
       List(5 -> 304, 6 -> 200),
-      List(7 -> 200))
+      List(7 -> 200)
+    )
 
     val groupedReqs = reqs.groupAsLongAs((t: (Int, Int)) => t._2 == 304)
 

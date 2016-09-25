@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,34 +15,48 @@
  */
 package io.gatling.core.body
 
+import java.io.FileInputStream
+
+import io.gatling.commons.util.{ GzipHelper, FastByteArrayInputStream }
 import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.util.FastByteArrayInputStream
-import io.gatling.core.util.GzipHelper
-import io.gatling.core.util.Io._
 
 object BodyProcessors {
 
-  def gzip(implicit configuration: GatlingConfiguration) = (body: Body) => {
+  def gzip(implicit configuration: GatlingConfiguration): Body => ByteArrayBody =
+    (body: Body) => {
 
-    val gzippedBytes = body match {
-      case StringBody(string)           => string.map(GzipHelper.gzip)
-      case ByteArrayBody(byteArray)     => byteArray.map(GzipHelper.gzip)
-      case InputStreamBody(inputStream) => inputStream.map(withCloseable(_)(GzipHelper.gzip(_)))
-      case _                            => throw new UnsupportedOperationException(s"requestCompressor doesn't support $body")
+      val gzippedBytes = body match {
+        case StringBody(string)       => string.map(GzipHelper.gzip)
+        case ByteArrayBody(byteArray) => byteArray.map(GzipHelper.gzip)
+        case RawFileBody(fileWithCachedBytes) => fileWithCachedBytes.map { f =>
+          f.cachedBytes match {
+            case Some(bytes) => GzipHelper.gzip(bytes)
+            case None        => GzipHelper.gzip(new FileInputStream(f.file))
+          }
+        }
+        case InputStreamBody(inputStream) => inputStream.map(GzipHelper.gzip(_))
+        case b: CompositeByteArrayBody    => b.asStream.map(GzipHelper.gzip(_))
+      }
+
+      ByteArrayBody(gzippedBytes)
     }
 
-    ByteArrayBody(gzippedBytes)
-  }
+  def stream(implicit configuration: GatlingConfiguration): Body => InputStreamBody =
+    (body: Body) => {
 
-  val Stream = (body: Body) => {
+      val stream = body match {
+        case stringBody: StringBody   => stringBody.asBytes.bytes.map(new FastByteArrayInputStream(_))
+        case ByteArrayBody(byteArray) => byteArray.map(new FastByteArrayInputStream(_))
+        case RawFileBody(fileWithCachedBytes) => fileWithCachedBytes.map { f =>
+          f.cachedBytes match {
+            case Some(bytes) => new FastByteArrayInputStream(bytes)
+            case None        => new FileInputStream(f.file)
+          }
+        }
+        case InputStreamBody(inputStream) => inputStream
+        case b: CompositeByteArrayBody    => b.asStream
+      }
 
-    val stream = body match {
-      case stringBody: StringBody       => stringBody.asBytes.bytes.map(new FastByteArrayInputStream(_))
-      case ByteArrayBody(byteArray)     => byteArray.map(new FastByteArrayInputStream(_))
-      case InputStreamBody(inputStream) => inputStream
-      case _                            => throw new UnsupportedOperationException(s"streamBody doesn't support $body")
+      InputStreamBody(stream)
     }
-
-    InputStreamBody(stream)
-  }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,41 +33,50 @@ trait ProtocolKey {
   type Components
   def protocolClass: Class[io.gatling.core.protocol.Protocol]
 
-  def defaultValue(implicit configuration: GatlingConfiguration): Protocol
-  def newComponents(system: ActorSystem, coreComponents: CoreComponents)(implicit configuration: GatlingConfiguration): Protocol => Components
+  def defaultProtocolValue(configuration: GatlingConfiguration): Protocol
+  def newComponents(system: ActorSystem, coreComponents: CoreComponents): Protocol => Components
 }
 
 trait ProtocolComponents {
+  def onStart: Option[Session => Session]
   def onExit: Option[Session => Unit]
 }
 
-class ProtocolComponentsRegistry(system: ActorSystem, coreComponents: CoreComponents, globalProtocols: Protocols)(implicit configuration: GatlingConfiguration) {
+class ProtocolComponentsRegistries(system: ActorSystem, coreComponents: CoreComponents, globalProtocols: Protocols) {
 
-  // mustn't reset
   val componentsFactoryCache = mutable.Map.empty[ProtocolKey, Any]
 
-  // must reset
-  var protocols = globalProtocols
+  def scenarioRegistry(scenarioProtocols: Protocols): ProtocolComponentsRegistry =
+    new ProtocolComponentsRegistry(
+      system,
+      coreComponents,
+      globalProtocols ++ scenarioProtocols,
+      componentsFactoryCache
+    )
+}
+
+class ProtocolComponentsRegistry(system: ActorSystem, coreComponents: CoreComponents, protocols: Protocols, componentsFactoryCache: mutable.Map[ProtocolKey, Any]) {
+
   val protocolCache = mutable.Map.empty[ProtocolKey, Protocol]
   val componentsCache = mutable.Map.empty[ProtocolKey, Any]
 
   def components(key: ProtocolKey): key.Components = {
 
       def componentsFactory = componentsFactoryCache.getOrElseUpdate(key, key.newComponents(system, coreComponents)).asInstanceOf[key.Protocol => key.Components]
-      def protocol: key.Protocol = protocolCache.getOrElse(key, protocols.protocols.getOrElse(key.protocolClass, key.defaultValue)).asInstanceOf[key.Protocol]
+      def protocol: key.Protocol = protocolCache.getOrElse(key, protocols.protocols.getOrElse(key.protocolClass, key.defaultProtocolValue(coreComponents.configuration))).asInstanceOf[key.Protocol]
       def comps = componentsFactory(protocol)
 
     componentsCache.getOrElseUpdate(key, comps).asInstanceOf[key.Components]
   }
 
-  def setScenarioProtocols(scenarioProtocols: Protocols): Unit = {
-    protocols = globalProtocols ++ scenarioProtocols
-    protocolCache.clear()
-    componentsCache.clear()
-  }
+  def onStart: Session => Session =
+    componentsCache.values.collect { case protocolComponents: ProtocolComponents => protocolComponents.onStart }.flatten.toList match {
+      case Nil          => Session.Identity
+      case head :: tail => tail.foldLeft(head)(_ andThen _)
+    }
 
   def onExit: Session => Unit =
-    componentsCache.values.flatMap(any => any.asInstanceOf[ProtocolComponents].onExit).toList match {
+    componentsCache.values.collect { case any: ProtocolComponents => any.onExit }.flatten.toList match {
       case Nil => _ => ()
       case onExits => session => onExits.foreach(_(session))
     }

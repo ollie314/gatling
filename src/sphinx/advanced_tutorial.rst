@@ -92,14 +92,13 @@ Explanations:
   2. As the default feeder strategy is *queue*, we will use the *random* strategy for this test to avoid feeder starvation.
   3. Every time a user reaches the feed step, it picks a random record from the feeder.
      This user has two new session attributes named *searchCriterion*, *searchComputerName*.
-  4. We use session data through Gatling's EL to parameterize the search.
-  5. We use a regex with an EL to capture a part of the HTML response, here a hyperlink, and save it in the user session with the name *computerURL*.
-     Note how Scala triple quotes are handy: you don't have to escape double quotes inside the regex with backslashes.
+  4. We use session data through Gatling's EL to parametrize the search.
+  5. We use a CSS selector with an EL to capture a part of the HTML response, here a hyperlink, and save it in the user session with the name *computerURL*.
   6. We use the previously saved hyperlink to get a specific page.
 
 .. note::
     For more details regarding *Feeders*, please check out :ref:`Feeder reference page <feeder>`.
-    
+
     For more details regarding *HTTP Checks*, please check out :ref:`Checks reference page <http-check>`.
 
 Step 04: Looping
@@ -158,4 +157,4 @@ Explanations:
 That's all Folks!
 
 .. note::
-  The files for this tutorial can be found in the distribution in the ``user-files/simulations`` directory, and on Github `here <https://github.com/gatling/gatling/tree/master/gatling-bundle/src/universal/user-files/simulations>`__.
+  The files for this tutorial can be found in the distribution in the ``user-files/simulations`` directory, and on Github `here <https://github.com/gatling/gatling/tree/master/gatling-bundle/src/main/scala/computerdatabase>`__.

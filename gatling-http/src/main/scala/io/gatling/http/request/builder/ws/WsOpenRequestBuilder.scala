@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
  */
 package io.gatling.http.request.builder.ws
 
+import io.gatling.core.CoreComponents
 import io.gatling.core.session.Expression
-import io.gatling.http.action.ws.WsOpenActionBuilder
+import io.gatling.http.action.async.ws.WsOpenBuilder
 import io.gatling.http.protocol.HttpComponents
 import io.gatling.http.request.builder.{ RequestBuilder, CommonAttributes }
 
@@ -24,14 +25,14 @@ import org.asynchttpclient.Request
 
 object WsOpenRequestBuilder {
 
-  implicit def toActionBuilder(requestBuilder: WsOpenRequestBuilder): WsOpenActionBuilder =
-    new WsOpenActionBuilder(requestBuilder.commonAttributes.requestName, requestBuilder.wsName, requestBuilder)
+  implicit def toActionBuilder(requestBuilder: WsOpenRequestBuilder): WsOpenBuilder =
+    new WsOpenBuilder(requestBuilder.commonAttributes.requestName, requestBuilder.wsName, requestBuilder)
 }
 
 case class WsOpenRequestBuilder(commonAttributes: CommonAttributes, wsName: String) extends RequestBuilder[WsOpenRequestBuilder] {
 
   private[http] def newInstance(commonAttributes: CommonAttributes) = new WsOpenRequestBuilder(commonAttributes, wsName)
 
-  def build(httpComponents: HttpComponents): Expression[Request] =
-    new WsRequestExpressionBuilder(commonAttributes, httpComponents).build
+  def build(coreComponents: CoreComponents, httpComponents: HttpComponents): Expression[Request] =
+    new WsRequestExpressionBuilder(commonAttributes, coreComponents, httpComponents).build
 }

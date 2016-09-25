@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import java.security.{ CodeSource, ProtectionDomain }
 
 import scala.collection.mutable
 
-import io.gatling.core.util.Io._
-import io.gatling.core.util.PathHelper._
+import io.gatling.commons.util.Io._
+import io.gatling.commons.util.PathHelper._
 
 private[classloader] class FileSystemBackedClassLoader(root: Path, parent: ClassLoader)
     extends ClassLoader(parent) {
@@ -98,7 +98,8 @@ private[classloader] class FileSystemBackedClassLoader(root: Path, parent: Class
       val ctor = classOf[Package].getDeclaredConstructor(
         classOf[String], classOf[String], classOf[String],
         classOf[String], classOf[String], classOf[String],
-        classOf[String], classOf[URL], classOf[ClassLoader])
+        classOf[String], classOf[URL], classOf[ClassLoader]
+      )
       ctor.setAccessible(true)
       ctor.newInstance(name, null, null, null, null, null, null, null, this)
     })
@@ -106,6 +107,6 @@ private[classloader] class FileSystemBackedClassLoader(root: Path, parent: Class
   }
 
   override def getPackages =
-    root.deepDirs.map(path => getPackage(path.toString)).toArray
+    root.deepDirs().map(path => getPackage(path.toString)).toArray
 
 }

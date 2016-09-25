@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ import io.gatling.jms.protocol.JmsMessageMatcher
 
 object IdentificationMatcher extends JmsMessageMatcher {
   override def prepareRequest(msg: Message): Unit = {}
-  override def responseID(msg: Message): String = requestID(msg)
-  override def requestID(msg: Message): String = msg.getStringProperty("identification")
+  override def responseMatchId(msg: Message): String = requestMatchId(msg)
+  override def requestMatchId(msg: Message): String = msg.getStringProperty("identification")
 }
 
 class JMSCompileTest extends Simulation {
@@ -91,6 +91,41 @@ class JMSCompileTest extends Simulation {
         .replyDestination(topic("replyTopic")).selector("env='myenv'")
         .textMessage("<test>name</test>")
         .check(xpath("//TEST").saveAs("name")))
+  }
+
+  val scnSend = scenario("JMS DSL test").repeat(1) {
+    exec(jms("req reply testing").send
+      .queue("jmstestq")
+      // -- four message types are supported; only StreamMessage is not currently supported
+      .textMessage("hello from gatling jms dsl")
+      .property("test_header", "test_value"))
+      .exec(jms("req reply testing").send
+        .queue("jmstestq")
+        .bytesMessage(new Array[Byte](1))
+        .property("test_header", "test_value"))
+      .exec(jms("req reply testing").send
+        .queue("jmstestq")
+        .objectMessage("hello!")
+        .property("test_header", "test_value"))
+      .exec(jms("req reply - custom").send
+        .queue("requestQueue")
+        .textMessage("hello from gatling jms dsl")
+        .property("identification", "${ID}"))
+  }
+
+  val scnSendExtra = scenario("JMS DSL using destinations").repeat(1) {
+    exec(jms("req reply testing").send
+      .destination(topic("jmstesttopic"))
+      .textMessage("hello from gatling jms dsl"))
+      .exec(jms("req reply testing").send
+        .destination(queue("jmstestq"))
+        .textMessage("hello from gatling jms dsl"))
+      .exec(jms("req reply testing").send
+        .destination(topic("requestTopic"))
+        .textMessage("hello from gatling jms dsl"))
+      .exec(jms("req reply testing").send
+        .destination(topic("requestTopic"))
+        .textMessage("<test>name</test>"))
   }
 
   setUp(scn.inject(rampUsersPerSec(10) to 1000 during (2 minutes)))

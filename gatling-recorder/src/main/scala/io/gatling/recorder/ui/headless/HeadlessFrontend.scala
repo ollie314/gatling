@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package io.gatling.recorder.ui.headless
 import java.io.{ PrintStream, File }
 import java.lang.management.ManagementFactory
 
-import io.gatling.core.util.Io._
+import io.gatling.commons.util.Io._
 import io.gatling.recorder.config.RecorderMode.Proxy
 import io.gatling.recorder.config.RecorderConfiguration
 import io.gatling.recorder.controller.RecorderController

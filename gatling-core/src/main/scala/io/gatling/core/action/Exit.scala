@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,26 +15,20 @@
  */
 package io.gatling.core.action
 
+import io.gatling.commons.util.TimeHelper.nowMillis
+import io.gatling.core.session.Session
 import io.gatling.core.stats.StatsEngine
 import io.gatling.core.stats.message.End
 import io.gatling.core.stats.writer.UserMessage
 
-import akka.actor.{ Props, ActorRef }
-import io.gatling.core.session.Session
-import io.gatling.core.util.TimeHelper.nowMillis
-
-object Exit {
-
-  val ExitActorName = "gatling-exit"
-
-  def props(controller: ActorRef, statsEngine: StatsEngine) =
-    Props(new Exit(controller, statsEngine))
-}
+import akka.actor.ActorRef
 
 class Exit(controller: ActorRef, statsEngine: StatsEngine) extends Action {
 
+  override val name = "gatling-exit"
+
   def execute(session: Session): Unit = {
-    logger.info(s"End user #${session.userId}")
+    logger.debug(s"End user #${session.userId}")
     session.exit()
     val userEnd = UserMessage(session, End, nowMillis)
     statsEngine.logUser(userEnd)

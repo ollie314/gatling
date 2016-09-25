@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
 package io.gatling.http.util
 
 import java.io.{ FileNotFoundException, InputStream, File, FileInputStream }
-import java.security.{ KeyStore, SecureRandom }
-import javax.net.ssl.{ KeyManager, KeyManagerFactory, SSLContext, TrustManager, TrustManagerFactory }
+import java.security.KeyStore
+import javax.net.ssl.{ KeyManagerFactory, TrustManagerFactory }
 
-import io.gatling.core.util.Io._
+import io.gatling.commons.util.Io._
+import io.gatling.core.config.AhcConfiguration
 
-import org.asynchttpclient.AsyncHttpClientConfig
+import io.netty.handler.ssl.{ SslProvider, SslContextBuilder }
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
 
 object SslHelper {
 
@@ -33,7 +35,7 @@ object SslHelper {
       Option(getClass.getClassLoader.getResourceAsStream(filePath)).getOrElse(throw new FileNotFoundException(filePath))
   }
 
-  def newTrustManagers(storeType: Option[String], file: String, password: String, algorithm: Option[String]): Array[TrustManager] = {
+  def newTrustManagerFactory(storeType: Option[String], file: String, password: String, algorithm: Option[String]): TrustManagerFactory = {
 
     withCloseable(storeStream(file)) { is =>
       val trustStore = KeyStore.getInstance(storeType.getOrElse(KeyStore.getDefaultType))
@@ -41,11 +43,11 @@ object SslHelper {
       val algo = algorithm.getOrElse(KeyManagerFactory.getDefaultAlgorithm)
       val tmf = TrustManagerFactory.getInstance(algo)
       tmf.init(trustStore)
-      tmf.getTrustManagers
+      tmf
     }
   }
 
-  def newKeyManagers(storeType: Option[String], file: String, password: String, algorithm: Option[String]): Array[KeyManager] = {
+  def newKeyManagerFactory(storeType: Option[String], file: String, password: String, algorithm: Option[String]): KeyManagerFactory = {
 
     withCloseable(storeStream(file)) { is =>
       val keyStore = KeyStore.getInstance(storeType.getOrElse(KeyStore.getDefaultType))
@@ -54,16 +56,21 @@ object SslHelper {
       val algo = algorithm.getOrElse(KeyManagerFactory.getDefaultAlgorithm)
       val kmf = KeyManagerFactory.getInstance(algo)
       kmf.init(keyStore, passwordCharArray)
-      kmf.getKeyManagers
+      kmf
     }
   }
 
-  implicit class RichAsyncHttpClientConfigBuilder(val ahcConfigBuilder: AsyncHttpClientConfig.Builder) extends AnyVal {
+  implicit class RichAsyncHttpClientConfigBuilder(val ahcConfigBuilder: DefaultAsyncHttpClientConfig.Builder) extends AnyVal {
 
-    def setSSLContext(trustManagers: Option[Array[TrustManager]], keyManagers: Option[Array[KeyManager]]): AsyncHttpClientConfig.Builder = {
-      val sslContext = SSLContext.getInstance("TLS")
-      sslContext.init(keyManagers.orNull, trustManagers.orNull, new SecureRandom)
-      ahcConfigBuilder.setSSLContext(sslContext)
+    def setSslContext(ahcConfig: AhcConfiguration, keyManagerFactory: Option[KeyManagerFactory], trustManagerFactory: Option[TrustManagerFactory]): DefaultAsyncHttpClientConfig.Builder = {
+      val sslContext = SslContextBuilder.forClient
+        .sslProvider(if (ahcConfig.useOpenSsl) SslProvider.OPENSSL else SslProvider.JDK)
+        .keyManager(keyManagerFactory.orNull)
+        .trustManager(trustManagerFactory.orNull)
+        .sessionCacheSize(ahcConfig.sslSessionCacheSize)
+        .sessionTimeout(ahcConfig.sslSessionTimeout)
+        .build
+      ahcConfigBuilder.setSslContext(sslContext)
     }
   }
 }

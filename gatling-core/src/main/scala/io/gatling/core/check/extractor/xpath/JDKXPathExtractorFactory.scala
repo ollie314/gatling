@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package io.gatling.core.check.extractor.xpath
 
-import org.w3c.dom.Document
-
+import io.gatling.commons.validation._
 import io.gatling.core.check.extractor._
-import io.gatling.core.validation.{ SuccessWrapper, Validation }
+
+import org.w3c.dom.Document
 
 class JdkXPathExtractorFactory(implicit val jdkXmlParsers: JdkXmlParsers) extends CriterionExtractorFactory[Option[Document], (String, List[(String, String)])]("xpath") {
 

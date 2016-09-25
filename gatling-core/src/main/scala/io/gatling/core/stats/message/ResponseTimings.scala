@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,17 @@
  */
 package io.gatling.core.stats.message
 
-case class ResponseTimings(requestStartDate: Long,
-                           requestEndDate: Long,
-                           responseStartDate: Long,
-                           responseEndDate: Long) {
+import com.typesafe.scalalogging.LazyLogging
 
-  val responseTime = (responseEndDate - requestStartDate).toInt
+case class ResponseTimings(startTimestamp: Long, endTimestamp: Long) extends LazyLogging {
 
-  val latency = (responseStartDate - requestEndDate).toInt
+  val responseTime = {
+    val rt = (endTimestamp - startTimestamp).toInt
+    if (rt >= 0) {
+      rt
+    } else {
+      logger.error(s"Got a negative response time startTimestamp=$startTimestamp endTimestamp=$endTimestamp")
+      1
+    }
+  }
 }

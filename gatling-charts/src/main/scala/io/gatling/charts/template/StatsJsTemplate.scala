@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ package io.gatling.charts.template
 
 import java.nio.charset.Charset
 
+import io.gatling.commons.util.StringHelper
+
 import com.dongxiguo.fastring.Fastring.Implicits._
 
-import io.gatling.core.util.StringHelper.RichString
+import StringHelper.RichString
 import io.gatling.charts.FileNamingConventions
 import io.gatling.charts.component.RequestStatistics
-import io.gatling.charts.report.{ GroupContainer, RequestContainer }
+import io.gatling.charts.report.GroupContainer
 import io.gatling.charts.report.Container.{ Group, Request }
 
 private[charts] class StatsJsTemplate(stats: GroupContainer, outputJson: Boolean) {
@@ -31,40 +33,45 @@ private[charts] class StatsJsTemplate(stats: GroupContainer, outputJson: Boolean
 
   def getOutput(charset: Charset): Fastring = {
 
-      def renderStatsRequest(request: RequestStatistics): Fastring = {
+      def renderStats(request: RequestStatistics, path: String): Fastring = {
         val jsonStats = new GlobalStatsJsonTemplate(request, outputJson).getOutput
 
-        fast"""${fieldName("name")}: "${request.name.escapeJsDoubleQuoteString}",
-${fieldName("path")}: "${request.path.escapeJsDoubleQuoteString}",
-${fieldName("pathFormatted")}: "${request.path.toFileName(charset)}",
+        fast"""${fieldName("name")}: "${request.name.escapeJsIllegalChars}",
+${fieldName("path")}: "${request.path.escapeJsIllegalChars}",
+${fieldName("pathFormatted")}: "$path",
 ${fieldName("stats")}: $jsonStats"""
       }
 
-      def renderStatsGroup(group: GroupContainer): Fastring =
-        fast"""${fieldName("type")}: "$Group",
-${renderStatsRequest(group.stats)},
-${fieldName("contents")}: {
-${
-          group.contents.values.map {
-            case subGroup: GroupContainer => fast""""${subGroup.name.toFileName(charset)}": {
-        ${renderStatsGroup(subGroup)}
-    }"""
-            case request: RequestContainer => fast""""${request.name.toFileName(charset)}": {
-        ${fieldName("type")}: "$Request",
-        ${renderStatsRequest(request.stats)}
-    }"""
-          }.mkFastring(",")
+      def renderSubGroups(group: GroupContainer): Iterable[Fastring] =
+        group.groups.values.map { subGroup =>
+          fast""""${subGroup.name.toGroupFileName(charset)}": {
+          ${renderGroup(subGroup)}
+     }"""
         }
+
+      def renderSubRequests(group: GroupContainer): Iterable[Fastring] =
+        group.requests.values.map { request =>
+          fast""""${request.name.toRequestFileName(charset)}": {
+        ${fieldName("type")}: "$Request",
+        ${renderStats(request.stats, request.stats.path.toRequestFileName(charset))}
+    }"""
+        }
+
+      def renderGroup(group: GroupContainer): Fastring =
+        fast"""${fieldName("type")}: "$Group",
+${renderStats(group.stats, group.stats.path.toGroupFileName(charset))},
+${fieldName("contents")}: {
+${(renderSubGroups(group) ++ renderSubRequests(group)).mkFastring(",")}
 }
 """
 
     if (outputJson)
       fast"""{
-  ${renderStatsGroup(stats)}
+  ${renderGroup(stats)}
 }"""
     else
       fast"""var stats = {
-    ${renderStatsGroup(stats)}
+    ${renderGroup(stats)}
 }
 
 function fillStats(stat){

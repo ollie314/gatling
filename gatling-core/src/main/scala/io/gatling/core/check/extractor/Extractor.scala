@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 package io.gatling.core.check.extractor
 
-import io.gatling.core.validation.Validation
+import io.gatling.commons.validation.Validation
 
 trait Extractor[P, X] {
   def name: String
@@ -45,7 +45,7 @@ trait FindArity {
 
   def occurrence: Int
   def arity = occurrence match {
-    case 1 => "find"
+    case 0 => "find"
     case i => s"find($i)"
   }
 }

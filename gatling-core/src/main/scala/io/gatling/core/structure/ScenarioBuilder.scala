@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@ package io.gatling.core.structure
 
 import scala.concurrent.duration.Duration
 
-import io.gatling.core.config.GatlingConfiguration
-import io.gatling.core.protocol.{ ProtocolComponentsRegistry, Protocols, Protocol }
-
-import akka.actor.ActorSystem
 import io.gatling.core.CoreComponents
 import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.controller.inject.{ InjectionProfile, InjectionStep }
 import io.gatling.core.controller.throttle.{ ThrottleStep, Throttling }
 import io.gatling.core.pause._
+import io.gatling.core.protocol.{ ProtocolComponentsRegistries, ProtocolComponentsRegistry, Protocols, Protocol }
 import io.gatling.core.scenario.Scenario
 import io.gatling.core.session.Expression
+
+import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 
 /**
@@ -44,17 +43,17 @@ case class ScenarioBuilder(name: String, actionBuilders: List[ActionBuilder] = N
 
   def inject(iss: Iterable[InjectionStep]): PopulationBuilder = {
     require(iss.nonEmpty, "Calling inject with empty injection steps")
-
-    new PopulationBuilder(this, InjectionProfile(iss))
+    PopulationBuilder(this, InjectionProfile(iss))
   }
 }
 
 case class PopulationBuilder(
-  scenarioBuilder: ScenarioBuilder,
-  injectionProfile: InjectionProfile,
-  scenarioProtocols: Protocols = Protocols(),
-  scenarioThrottling: Option[Throttling] = None,
-  pauseType: Option[PauseType] = None)
+  scenarioBuilder:       ScenarioBuilder,
+  injectionProfile:      InjectionProfile,
+  scenarioProtocols:     Protocols              = Protocols(),
+  scenarioThrottleSteps: Iterable[ThrottleStep] = Nil,
+  pauseType:             Option[PauseType]      = None
+)
     extends LazyLogging {
 
   def protocols(protocols: Protocol*) = copy(scenarioProtocols = this.scenarioProtocols ++ protocols)
@@ -71,39 +70,41 @@ case class PopulationBuilder(
 
   def throttle(throttleSteps: Iterable[ThrottleStep]): PopulationBuilder = {
     require(throttleSteps.nonEmpty, s"Scenario '${scenarioBuilder.name}' has an empty throttling definition.")
-    copy(scenarioThrottling = Some(Throttling(throttleSteps)))
+    copy(scenarioThrottleSteps = throttleSteps)
   }
 
   /**
    * @param system the actor system
    * @param coreComponents the CoreComponents
-   * @param protocolComponentsRegistry the ProtocolComponents registry
-   * @param globalProtocols the protocols
+   * @param protocolComponentsRegistries the ProtocolComponents registries
    * @param globalPauseType the pause type
    * @param globalThrottling the optional throttling profile
    * @return the scenario
    */
-  private[core] def build(system: ActorSystem, coreComponents: CoreComponents, protocolComponentsRegistry: ProtocolComponentsRegistry, globalProtocols: Protocols, globalPauseType: PauseType, globalThrottling: Option[Throttling])(implicit configuration: GatlingConfiguration): Scenario = {
+  private[core] def build(system: ActorSystem, coreComponents: CoreComponents, protocolComponentsRegistries: ProtocolComponentsRegistries, globalPauseType: PauseType, globalThrottling: Option[Throttling]): Scenario = {
 
-    val resolvedPauseType = globalThrottling.orElse(scenarioThrottling).map { _ =>
-      logger.info("Throttle is enabled, disabling pauses")
-      Disabled
-    }.orElse(pauseType).getOrElse(globalPauseType)
+    val resolvedPauseType =
+      if (scenarioThrottleSteps.nonEmpty || globalThrottling.isDefined) {
+        logger.info("Throttle is enabled, disabling pauses")
+        Disabled
+      } else {
+        pauseType.getOrElse(globalPauseType)
+      }
 
-    // beware, have to set scenarioProtocols into mutable protocolComponents
-    protocolComponentsRegistry.setScenarioProtocols(scenarioProtocols)
+    val protocolComponentsRegistry = protocolComponentsRegistries.scenarioRegistry(scenarioProtocols)
 
-    val ctx = ScenarioContext(system, coreComponents, protocolComponentsRegistry, configuration, resolvedPauseType, globalThrottling.isDefined || scenarioThrottling.isDefined)
+    val ctx = ScenarioContext(system, coreComponents, protocolComponentsRegistry, resolvedPauseType, globalThrottling.isDefined || scenarioThrottleSteps.nonEmpty)
 
     val entry = scenarioBuilder.build(ctx, coreComponents.exit)
 
-    new Scenario(scenarioBuilder.name, entry, protocolComponentsRegistry.onExit, injectionProfile, ctx)
+    Scenario(scenarioBuilder.name, entry, protocolComponentsRegistry.onStart, protocolComponentsRegistry.onExit, injectionProfile, ctx)
   }
 }
 
-case class ScenarioContext(system: ActorSystem,
-                           coreComponents: CoreComponents,
-                           protocolComponentsRegistry: ProtocolComponentsRegistry,
-                           configuration: GatlingConfiguration,
-                           pauseType: PauseType,
-                           throttled: Boolean)
+case class ScenarioContext(
+  system:                     ActorSystem,
+  coreComponents:             CoreComponents,
+  protocolComponentsRegistry: ProtocolComponentsRegistry,
+  pauseType:                  PauseType,
+  throttled:                  Boolean
+)

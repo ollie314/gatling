@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@ package io.gatling.core.feeder
 
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
+import io.gatling.commons.util.RoundRobin
 import io.gatling.core.structure.ScenarioContext
-import io.gatling.core.util.RoundRobin
 
 sealed trait FeederStrategy {
   def feeder[T](records: IndexedSeq[Record[T]], ctx: ScenarioContext): Feeder[T]

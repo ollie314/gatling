@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,25 @@
  */
 package io.gatling.core.filter
 
-import org.scalatest.Inspectors
+import org.scalatest.{ FlatSpecLike, Inspectors, Matchers }
 import io.gatling.BaseSpec
 
-class FiltersSpec extends BaseSpec with Inspectors {
+import org.scalatest.mockito.MockitoSugar
+
+class FiltersSpec extends FlatSpecLike with Matchers with MockitoSugar with Inspectors {
 
   val hosts = List(
     "http://excilys.com",
     "http://ebusinessinformation.fr",
-    "http://gatling.io")
+    "http://gatling.io"
+  )
 
   val paths = List(
     "",
     "/infos.html",
     "/assets/images/foo.png",
-    "/assets/js/bar.js")
+    "/assets/js/bar.js"
+  )
 
   val urls = for {
     host <- hosts

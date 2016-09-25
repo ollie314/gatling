@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,14 @@ import io.gatling.recorder.config.RecorderConfiguration
 
 private[scenario] object SimulationTemplate {
 
-  def render(packageName: String,
-             simulationClassName: String,
-             protocol: ProtocolDefinition,
-             headers: Map[Int, Seq[(String, String)]],
-             scenarioName: String,
-             scenarioElements: Either[Seq[ScenarioElement], Seq[Seq[ScenarioElement]]])(implicit config: RecorderConfiguration): String = {
+  def render(
+    packageName:         String,
+    simulationClassName: String,
+    protocol:            ProtocolDefinition,
+    headers:             Map[Int, Seq[(String, String)]],
+    scenarioName:        String,
+    scenarioElements:    Either[Seq[ScenarioElement], Seq[Seq[ScenarioElement]]]
+  )(implicit config: RecorderConfiguration): String = {
 
       def renderPackage = if (!packageName.isEmpty) fast"package $packageName\n" else ""
 
@@ -103,6 +105,7 @@ $mapContent)"""
         }
 
     val extractedUris = new ExtractedUris(flatScenarioElements(scenarioElements))
+    val nonBaseUrls = extractedUris.vals.filter(_.value != protocol.baseUrl)
 
     fast"""$renderPackage
 import scala.concurrent.duration._
@@ -117,7 +120,7 @@ class $simulationClassName extends Simulation {
 
 $renderHeaders
 
-${ValuesTemplate.render(extractedUris.vals)}
+${ValuesTemplate.render(nonBaseUrls)}
 
 	${renderScenario(extractedUris)}
 

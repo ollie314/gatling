@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,14 +29,14 @@ class SessionCacheHandlerSpec extends BaseSpec with OptionValues {
   }
 
   it should "return the cache if it exists" in {
-    val newCache = Cache[String, String](2)
+    val newCache = Cache.newImmutableCache[String, String](2)
     val sessionWithCache = defaultSession.set("stringCache", newCache)
     sessionCacheHandler.getCache(sessionWithCache) should not be empty
     sessionCacheHandler.getCache(sessionWithCache).value should be theSameInstanceAs newCache
   }
 
   "getOrCreateCache" should "return the cache if it exists" in {
-    val newCache = Cache[String, String](2)
+    val newCache = Cache.newImmutableCache[String, String](2)
     val sessionWithCache = defaultSession.set("stringCache", newCache)
     sessionCacheHandler.getOrCreateCache(sessionWithCache) should be theSameInstanceAs newCache
   }

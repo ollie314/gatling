@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,22 +18,24 @@ package io.gatling.http.protocol
 import java.net.InetAddress
 import java.util.regex.Pattern
 
+import io.gatling.commons.util.RoundRobin
+import io.gatling.commons.validation._
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.filter.Filters
-import io.gatling.core.protocol.{ ProtocolKey, Protocol }
-import io.gatling.core.session.Expression
-import io.gatling.core.util.RoundRobin
-import io.gatling.http.ahc.HttpEngine
+import io.gatling.core.protocol.{ Protocol, ProtocolKey }
+import io.gatling.core.session._
+import io.gatling.http.ahc.{ HttpEngine, ResponseProcessor }
 import io.gatling.http.cache.HttpCaches
 import io.gatling.http.check.HttpCheck
 import io.gatling.http.request.ExtraInfoExtractor
 import io.gatling.http.response.Response
-
+import io.gatling.http.util.HttpHelper
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.StrictLogging
 import org.asynchttpclient._
 import org.asynchttpclient.proxy._
+import org.asynchttpclient.uri.Uri
 
 object HttpProtocol extends StrictLogging {
 
@@ -43,14 +45,20 @@ object HttpProtocol extends StrictLogging {
     type Components = HttpComponents
     def protocolClass: Class[io.gatling.core.protocol.Protocol] = classOf[HttpProtocol].asInstanceOf[Class[io.gatling.core.protocol.Protocol]]
 
-    def defaultValue(implicit configuration: GatlingConfiguration): HttpProtocol = HttpProtocol(configuration)
+    def defaultProtocolValue(configuration: GatlingConfiguration): HttpProtocol = HttpProtocol(configuration)
 
-    def newComponents(system: ActorSystem, coreComponents: CoreComponents)(implicit configuration: GatlingConfiguration): HttpProtocol => HttpComponents = {
+    def newComponents(system: ActorSystem, coreComponents: CoreComponents): HttpProtocol => HttpComponents = {
 
       val httpEngine = HttpEngine(system, coreComponents)
 
       httpProtocol => {
-        val httpComponents = HttpComponents(httpProtocol, httpEngine, new HttpCaches)
+        val httpComponents = HttpComponents(
+          httpProtocol,
+          httpEngine,
+          new HttpCaches(coreComponents.configuration),
+          new ResponseProcessor(coreComponents.statsEngine, httpEngine, coreComponents.configuration)(system)
+        )
+
         httpEngine.warmpUp(httpComponents)
         httpComponents
       }
@@ -59,15 +67,17 @@ object HttpProtocol extends StrictLogging {
 
   def apply(configuration: GatlingConfiguration): HttpProtocol =
     HttpProtocol(
-      baseURLs = Nil,
+      baseUrls = Nil,
       warmUpUrl = configuration.http.warmUpUrl,
       enginePart = HttpProtocolEnginePart(
         shareClient = true,
         shareConnections = false,
-        shareDnsCache = false,
+        perUserNameResolution = false,
+        hostNameAliases = Map.empty,
         maxConnectionsPerHost = 6,
         virtualHost = None,
-        localAddress = None),
+        localAddresses = Nil
+      ),
       requestPart = HttpProtocolRequestPart(
         headers = Map.empty,
         realm = None,
@@ -76,7 +86,8 @@ object HttpProtocol extends StrictLogging {
         disableUrlEncoding = false,
         silentResources = false,
         silentURI = None,
-        signatureCalculator = None),
+        signatureCalculator = None
+      ),
       responsePart = HttpProtocolResponsePart(
         followRedirect = true,
         maxRedirects = None,
@@ -86,27 +97,24 @@ object HttpProtocol extends StrictLogging {
         checks = Nil,
         extraInfoExtractor = None,
         inferHtmlResources = false,
-        htmlResourcesInferringFilters = None),
+        htmlResourcesInferringFilters = None
+      ),
       wsPart = HttpProtocolWsPart(
-        wsBaseURLs = Nil,
+        wsBaseUrls = Nil,
         reconnect = false,
-        maxReconnects = None),
+        maxReconnects = None
+      ),
       proxyPart = HttpProtocolProxyPart(
-        proxies = None,
-        proxyExceptions = Nil))
-
-  def baseUrlIterator(urls: List[String]): Iterator[Option[String]] =
-    urls match {
-      case Nil        => Iterator.continually(None)
-      case url :: Nil => Iterator.continually(Some(url))
-      case _          => RoundRobin(urls.map(Some(_)).toVector)
-    }
+        proxy = None,
+        proxyExceptions = Nil
+      )
+    )
 }
 
 /**
  * Class containing the configuration for the HTTP protocol
  *
- * @param baseURLs the radixes of all the URLs that will be used (eg: http://mywebsite.tld)
+ * @param baseUrls the radixes of all the URLs that will be used (eg: http://mywebsite.tld)
  * @param warmUpUrl the url used to load the TCP stack
  * @param enginePart the HTTP engine related configuration
  * @param requestPart the request related configuration
@@ -115,59 +123,99 @@ object HttpProtocol extends StrictLogging {
  * @param proxyPart the Proxy related configuration
  */
 case class HttpProtocol(
-  baseURLs: List[String],
-  warmUpUrl: Option[String],
-  enginePart: HttpProtocolEnginePart,
-  requestPart: HttpProtocolRequestPart,
-  responsePart: HttpProtocolResponsePart,
-  wsPart: HttpProtocolWsPart,
-  proxyPart: HttpProtocolProxyPart)
-    extends Protocol {
+    baseUrls:     List[String],
+    warmUpUrl:    Option[String],
+    enginePart:   HttpProtocolEnginePart,
+    requestPart:  HttpProtocolRequestPart,
+    responsePart: HttpProtocolResponsePart,
+    wsPart:       HttpProtocolWsPart,
+    proxyPart:    HttpProtocolProxyPart
+) extends Protocol {
 
   type Components = HttpComponents
 
-  private val httpBaseUrlIterator = HttpProtocol.baseUrlIterator(baseURLs)
-  def baseURL: Option[String] = httpBaseUrlIterator.next()
+  val baseUrlIterator: Option[Iterator[String]] = baseUrls match {
+    case Nil => None
+    case _   => Some(RoundRobin(baseUrls.toVector))
+  }
+
+  private val doMakeAbsoluteHttpUri: String => Validation[Uri] =
+    baseUrls match {
+      case Nil => url => s"No protocol.baseUrl defined but provided url is relative : $url".failure
+      case baseUrl :: Nil => url => Uri.create(baseUrl + url).success
+      case _ =>
+        val it = baseUrlIterator.get
+        url => Uri.create(it.next() + url).success
+    }
+
+  def makeAbsoluteHttpUri(url: String): Validation[Uri] =
+    if (HttpHelper.isAbsoluteHttpUrl(url))
+      Uri.create(url).success
+    else
+      doMakeAbsoluteHttpUri(url)
 }
 
 case class HttpProtocolEnginePart(
-  shareClient: Boolean,
-  shareConnections: Boolean,
+  shareClient:           Boolean,
+  shareConnections:      Boolean,
   maxConnectionsPerHost: Int,
-  shareDnsCache: Boolean,
-  virtualHost: Option[Expression[String]],
-  localAddress: Option[Expression[InetAddress]])
+  perUserNameResolution: Boolean,
+  hostNameAliases:       Map[String, InetAddress],
+  virtualHost:           Option[Expression[String]],
+  localAddresses:        List[InetAddress]
+)
 
 case class HttpProtocolRequestPart(
-  headers: Map[String, Expression[String]],
-  realm: Option[Expression[Realm]],
-  autoReferer: Boolean,
-  cache: Boolean,
-  disableUrlEncoding: Boolean,
-  silentURI: Option[Pattern],
-  silentResources: Boolean,
-  signatureCalculator: Option[Expression[SignatureCalculator]])
+  headers:             Map[String, Expression[String]],
+  realm:               Option[Expression[Realm]],
+  autoReferer:         Boolean,
+  cache:               Boolean,
+  disableUrlEncoding:  Boolean,
+  silentURI:           Option[Pattern],
+  silentResources:     Boolean,
+  signatureCalculator: Option[Expression[SignatureCalculator]]
+)
 
 case class HttpProtocolResponsePart(
-  followRedirect: Boolean,
-  maxRedirects: Option[Int],
-  strict302Handling: Boolean,
-  discardResponseChunks: Boolean,
-  responseTransformer: Option[PartialFunction[Response, Response]],
-  checks: List[HttpCheck],
-  extraInfoExtractor: Option[ExtraInfoExtractor],
-  inferHtmlResources: Boolean,
-  htmlResourcesInferringFilters: Option[Filters])
+  followRedirect:                Boolean,
+  maxRedirects:                  Option[Int],
+  strict302Handling:             Boolean,
+  discardResponseChunks:         Boolean,
+  responseTransformer:           Option[PartialFunction[Response, Response]],
+  checks:                        List[HttpCheck],
+  extraInfoExtractor:            Option[ExtraInfoExtractor],
+  inferHtmlResources:            Boolean,
+  htmlResourcesInferringFilters: Option[Filters]
+)
 
 case class HttpProtocolWsPart(
-    wsBaseURLs: List[String],
-    reconnect: Boolean,
-    maxReconnects: Option[Int]) {
+    wsBaseUrls:    List[String],
+    reconnect:     Boolean,
+    maxReconnects: Option[Int]
+) {
 
-  private val wsBaseUrlIterator = HttpProtocol.baseUrlIterator(wsBaseURLs)
-  def wsBaseURL: Option[String] = wsBaseUrlIterator.next()
+  private val wsBaseUrlIterator: Option[Iterator[String]] = wsBaseUrls match {
+    case Nil => None
+    case _   => Some(RoundRobin(wsBaseUrls.toVector))
+  }
+
+  private val doMakeAbsoluteWsUri: String => Validation[Uri] =
+    wsBaseUrls match {
+      case Nil => url => s"No protocol.wsBaseUrl defined but provided url is relative : $url".failure
+      case wsBaseUrl :: Nil => url => Uri.create(wsBaseUrl + url).success
+      case _ =>
+        val it = wsBaseUrlIterator.get
+        url => Uri.create(it.next() + url).success
+    }
+
+  def makeAbsoluteWsUri(url: String): Validation[Uri] =
+    if (HttpHelper.isAbsoluteWsUrl(url))
+      Uri.create(url).success
+    else
+      doMakeAbsoluteWsUri(url)
 }
 
 case class HttpProtocolProxyPart(
-  proxies: Option[(ProxyServer, ProxyServer)],
-  proxyExceptions: Seq[String])
+  proxy:           Option[ProxyServer],
+  proxyExceptions: Seq[String]
+)

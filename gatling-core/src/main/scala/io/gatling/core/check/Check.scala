@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ package io.gatling.core.check
 import scala.annotation.tailrec
 import scala.collection.mutable
 
+import io.gatling.commons.validation._
 import io.gatling.core.check.extractor.Extractor
 import io.gatling.core.session.{ Expression, Session }
-import io.gatling.core.validation.{ Failure, Success, SuccessWrapper, Validation }
 
 object Check {
 
@@ -42,7 +42,8 @@ object Check {
                     session = checkUpdate(session),
                     tail,
                     update = update andThen checkUpdate,
-                    failure)
+                    failure
+                  )
                 case _ =>
                   checkRec(session, tail, update, failure)
               }
@@ -66,10 +67,11 @@ trait Check[R] {
 }
 
 case class CheckBase[R, P, X](
-    preparer: Preparer[R, P],
+    preparer:            Preparer[R, P],
     extractorExpression: Expression[Extractor[P, X]],
     validatorExpression: Expression[Validator[X]],
-    saveAs: Option[String]) extends Check[R] {
+    saveAs:              Option[String]
+) extends Check[R] {
 
   def check(response: R, session: Session)(implicit cache: mutable.Map[Any, Any]): Validation[CheckResult] = {
 
@@ -83,7 +85,6 @@ case class CheckBase[R, P, X](
       prepared <- memoizedPrepared.mapError(message => s"${extractor.name}.${extractor.arity}.${validator.name} failed, could not prepare: $message")
       actual <- extractor(prepared).mapError(message => s"${extractor.name}.${extractor.arity}.${validator.name} failed, could not extract: $message")
       matched <- validator(actual).mapError(message => s"${extractor.name}.${extractor.arity}.${validator.name}, $message")
-
     } yield CheckResult(matched, saveAs)
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ sealed abstract class RawRecord(header: RecordHeader, recordLength: Int) {
 }
 
 object RawRunRecord extends RawRecord(RunRecordHeader, 6)
-object RawRequestRecord extends RawRecord(RequestRecordHeader, 10)
+object RawRequestRecord extends RawRecord(RequestRecordHeader, 8)
 object RawUserRecord extends RawRecord(UserRecordHeader, 5)
 object RawGroupRecord extends RawRecord(GroupRecordHeader, 7)
 object RawErrorRecord extends RawRecord(ErrorRecordHeader, 3)

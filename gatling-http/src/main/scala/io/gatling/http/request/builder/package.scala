@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,43 @@
  */
 package io.gatling.http.request
 
-import java.util.{ List => JList, ArrayList => JArrayList }
+import java.util.{ ArrayList => JArrayList, Collections => JCollections, List => JList }
 
 import scala.annotation.tailrec
+import scala.collection.JavaConversions._
 
-import io.gatling.core.session.Session
-import io.gatling.core.validation._
+import io.gatling.commons.validation._
+import io.gatling.core.session.{ Expression, Session }
 
 import org.asynchttpclient.Param
 
 package object builder {
 
+  val EmptyParamJListSuccess: Validation[JList[Param]] = JCollections.emptyList[Param].success
+
   implicit class HttpParams(val params: List[HttpParam]) extends AnyVal {
+
+    def mergeWithFormIntoParamJList(formMaybe: Option[Expression[Map[String, Seq[String]]]], session: Session): Validation[JList[Param]] = {
+
+      val formParams = params.resolveParamJList(session)
+
+      formMaybe match {
+        case Some(form) =>
+          for {
+            resolvedFormParams <- formParams
+            resolvedForm <- form(session)
+          } yield {
+            val formParamsByName = resolvedFormParams.groupBy(_.getName)
+            val formFieldsByName = resolvedForm.map { case (key, values) => key -> values.map(value => new Param(key, value)) }
+            // override form with formParams
+            val javaParams: JList[Param] = (formFieldsByName ++ formParamsByName).values.flatten.toSeq
+            javaParams
+          }
+
+        case None =>
+          formParams
+      }
+    }
 
     def resolveParamJList(session: Session): Validation[JList[Param]] = {
 
@@ -67,17 +92,20 @@ package object builder {
         }
 
         @tailrec
-        def resolveParamJList(ahcParams: JList[Param], currentParams: List[HttpParam]): Validation[JList[Param]] =
+        def resolveParamJListRec(ahcParams: JList[Param], currentParams: List[HttpParam]): Validation[JList[Param]] =
           currentParams match {
             case Nil => ahcParams.success
             case head :: tail =>
               update(ahcParams, head) match {
-                case Success(newAhcParams) => resolveParamJList(newAhcParams, tail)
+                case Success(newAhcParams) => resolveParamJListRec(newAhcParams, tail)
                 case f                     => f
               }
           }
 
-      resolveParamJList(new JArrayList[Param](params.size), params)
+      if (params.isEmpty)
+        EmptyParamJListSuccess
+      else
+        resolveParamJListRec(new JArrayList[Param](params.size), params)
     }
   }
 }

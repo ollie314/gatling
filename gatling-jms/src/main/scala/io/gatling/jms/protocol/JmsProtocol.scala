@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.gatling.jms.protocol
 import io.gatling.core.CoreComponents
 import io.gatling.core.config.{ GatlingConfiguration, Credentials }
 import io.gatling.core.protocol.{ ProtocolKey, Protocol }
+import io.gatling.jms.action.JmsRequestTrackerActor
 
 import akka.actor.ActorSystem
 
@@ -30,23 +31,26 @@ object JmsProtocol {
 
     def protocolClass: Class[io.gatling.core.protocol.Protocol] = classOf[JmsProtocol].asInstanceOf[Class[io.gatling.core.protocol.Protocol]]
 
-    def defaultValue(implicit configuration: GatlingConfiguration): JmsProtocol = throw new IllegalStateException("Can't provide a default value for JmsProtocol")
+    def defaultProtocolValue(configuration: GatlingConfiguration): JmsProtocol = throw new IllegalStateException("Can't provide a default value for JmsProtocol")
 
-    def newComponents(system: ActorSystem, coreComponents: CoreComponents)(implicit configuration: GatlingConfiguration): JmsProtocol => JmsComponents =
-      jmsProtocol => JmsComponents(jmsProtocol)
+    def newComponents(system: ActorSystem, coreComponents: CoreComponents): JmsProtocol => JmsComponents = {
+      val tracker = system.actorOf(JmsRequestTrackerActor.props(coreComponents.statsEngine, coreComponents.configuration), "jmsRequestTracker")
+      jmsProtocol => JmsComponents(jmsProtocol, tracker)
+    }
   }
 }
 
 case class JmsProtocol(
-    contextFactory: String,
+    contextFactory:        String,
     connectionFactoryName: String,
-    url: String,
-    credentials: Option[Credentials],
-    anonymousConnect: Boolean,
-    listenerCount: Int,
-    deliveryMode: Int,
-    receiveTimeout: Option[Long],
-    messageMatcher: JmsMessageMatcher) extends Protocol {
+    url:                   String,
+    credentials:           Option[Credentials],
+    anonymousConnect:      Boolean,
+    listenerCount:         Int,
+    deliveryMode:          Int,
+    receiveTimeout:        Option[Long],
+    messageMatcher:        JmsMessageMatcher
+) extends Protocol {
 
   type Components = JmsComponents
 }

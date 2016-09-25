@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@ package io.gatling.core.action.builder
 import scala.annotation.tailrec
 import scala.concurrent.forkjoin.ThreadLocalRandom
 
-import io.gatling.core.action.Switch
+import io.gatling.commons.validation._
+import io.gatling.commons.util.Collections._
+import io.gatling.core.action.{ Action, Switch }
 import io.gatling.core.session.Expression
-import io.gatling.core.structure.{ ScenarioContext, ChainBuilder }
-import io.gatling.core.validation.SuccessWrapper
+import io.gatling.core.structure.{ ChainBuilder, ScenarioContext }
+import io.gatling.core.util.NameGen
 
-import akka.actor.ActorRef
 import com.typesafe.scalalogging.StrictLogging
 
 object RandomSwitchBuilder {
@@ -42,18 +43,16 @@ object RandomSwitchBuilder {
   }
 }
 
-class RandomSwitchBuilder(possibilities: List[(Int, ChainBuilder)], elseNext: Option[ChainBuilder]) extends ActionBuilder with StrictLogging {
+class RandomSwitchBuilder(possibilities: List[(Int, ChainBuilder)], elseNext: Option[ChainBuilder]) extends ActionBuilder with StrictLogging with NameGen {
 
   import RandomSwitchBuilder._
 
-  val sum = possibilities.map(_._1).sum
-  require(sum <= Accuracy, s"Random switch weights sum is ${sum / Accuracy}, mustn't be bigger than 100%")
+  val sum = possibilities.sumBy(_._1)
+  require(sum <= Accuracy, s"Random switch weights sum is ${sum.toDouble / 100}, mustn't be bigger than 100%")
   if (sum == Accuracy && elseNext.isDefined)
     logger.warn("Random switch has a 100% sum, yet a else is defined?!")
 
-  def build(ctx: ScenarioContext, next: ActorRef) = {
-
-    import ctx._
+  override def build(ctx: ScenarioContext, next: Action): Action = {
 
     val possibleActions = possibilities.map {
       case (percentage, possibility) =>
@@ -61,13 +60,13 @@ class RandomSwitchBuilder(possibilities: List[(Int, ChainBuilder)], elseNext: Op
         (percentage, possibilityAction)
     }
 
-    val elseNextActor = elseNext.map(_.build(ctx, next)).getOrElse(next)
+    val elseNextAction = elseNext.map(_.build(ctx, next)).getOrElse(next)
 
-    val nextAction: Expression[ActorRef] = _ => {
+    val nextAction: Expression[Action] = _ => {
 
         @tailrec
-        def determineNextAction(index: Int, possibilities: List[(Int, ActorRef)]): ActorRef = possibilities match {
-          case Nil => elseNextActor
+        def determineNextAction(index: Int, possibilities: List[(Int, Action)]): Action = possibilities match {
+          case Nil => elseNextAction
           case (percentage, possibleAction) :: others =>
             if (percentage >= index)
               possibleAction
@@ -77,6 +76,6 @@ class RandomSwitchBuilder(possibilities: List[(Int, ChainBuilder)], elseNext: Op
 
       determineNextAction(randomWithinAccuracy, possibleActions).success
     }
-    system.actorOf(Switch.props(nextAction, coreComponents.statsEngine, next), actorName("randomSwitch"))
+    new Switch(nextAction, ctx.coreComponents.statsEngine, genName("randomSwitch"), next)
   }
 }

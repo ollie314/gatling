@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@ package io.gatling.charts.config
 
 import java.nio.file.Path
 
+import io.gatling.commons.util.PathHelper._
 import io.gatling.core.config.GatlingConfiguration
 import io.gatling.core.config.GatlingFiles._
 import io.gatling.charts.FileNamingConventions
-import io.gatling.core.util.PathHelper._
 
 private[charts] object ChartsFiles {
   val JQueryFile = "jquery.min.js"
@@ -38,7 +38,8 @@ private[charts] object ChartsFiles {
 
   val CommonJsFiles = Seq(
     JQueryFile, BootstrapFile, GatlingJsFile,
-    MomentJsFile, MenuFile, AllSessionsFile, StatsJsFile)
+    MomentJsFile, MenuFile, AllSessionsFile, StatsJsFile
+  )
 
   def menuFile(runOn: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runOn) / GatlingJsFolder / MenuFile
 
@@ -46,7 +47,11 @@ private[charts] object ChartsFiles {
 
   def globalFile(runOn: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runOn) / "index.html"
 
-  def requestFile(runOn: String, requestName: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runOn) / requestName.toRequestFileName(configuration.core.charset)
+  def requestFile(runOn: String, requestName: String)(implicit configuration: GatlingConfiguration): Path =
+    resultDirectory(runOn) / (requestName.toRequestFileName(configuration.core.charset) + ".html")
+
+  def groupFile(runOn: String, requestName: String)(implicit configuration: GatlingConfiguration): Path =
+    resultDirectory(runOn) / (requestName.toGroupFileName(configuration.core.charset) + ".html")
 
   def statsJsFile(runOn: String)(implicit configuration: GatlingConfiguration): Path = resultDirectory(runOn) / GatlingJsFolder / StatsJsFile
 

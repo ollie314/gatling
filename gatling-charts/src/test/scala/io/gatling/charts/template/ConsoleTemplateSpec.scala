@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class ConsoleTemplateSpec extends BaseSpec {
   }
 
   it should "format the grouped counts properly" in {
-    val out = ConsoleTemplate.writeGroupedCounters(GroupedCount("t < 42 ms", 90, math.round(90 / 0.42d).toInt))
+    val out = ConsoleTemplate.writeGroupedCounters(GroupedCount("t < 42 ms", 90, (90 / 0.42d).round.toInt))
     out.mkString shouldBe "> t < 42 ms                                             90 ( 42%)"
   }
 }

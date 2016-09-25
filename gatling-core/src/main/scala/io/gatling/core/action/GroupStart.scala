@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,14 @@
 package io.gatling.core.action
 
 import io.gatling.core.stats.StatsEngine
-
-import akka.actor.{ Props, ActorRef }
 import io.gatling.core.session.{ Expression, Session }
+import io.gatling.core.util.NameGen
 
-object GroupStart {
-  def props(groupName: Expression[String], statsEngine: StatsEngine, next: ActorRef) =
-    Props(new GroupStart(groupName, statsEngine, next))
-}
+class GroupStart(groupName: Expression[String], val statsEngine: StatsEngine, val next: Action) extends ExitableAction with NameGen {
 
-class GroupStart(groupName: Expression[String], val statsEngine: StatsEngine, val next: ActorRef) extends Interruptable with Failable {
+  override val name: String = genName("groupStart")
 
-  def executeOrFail(session: Session) = groupName(session).map(next ! session.enterGroup(_))
+  override def execute(session: Session) = recover(session) {
+    groupName(session).map(next ! session.enterGroup(_))
+  }
 }

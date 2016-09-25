@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@
 package io.gatling.core.assertion
 
 import io.gatling.BaseSpec
+import io.gatling.commons.stats.assertion._
 
-import boopickle._
+import boopickle.Default._
 import org.scalacheck.{ Arbitrary, Gen }
 
 trait AssertionGenerator {
@@ -62,16 +63,17 @@ trait AssertionGenerator {
     Gen.oneOf(lessThan, greaterThan, is, between, in)
   }
 
-  val assertionGen: Gen[Assertion] = for {
-    path <- pathGen
-    target <- targetGen
-    condition <- conditionGen
-  } yield Assertion(path, target, condition)
+  val assertionGen: Gen[Assertion] =
+    for {
+      path <- pathGen
+      target <- targetGen
+      condition <- conditionGen
+    } yield Assertion(path, target, condition)
 }
 
-class AssertionCodecSpec extends BaseSpec with AssertionCodec with AssertionGenerator {
+class AssertionCodecSpec extends BaseSpec with AssertionGenerator {
 
-  override implicit val generatorDrivenConfig = PropertyCheckConfig(minSuccessful = 300)
+  override implicit val generatorDrivenConfig = PropertyCheckConfiguration(minSuccessful = 300)
 
   "The assertion parser" should "be able to parse correctly arbitrary assertions" in {
     forAll(assertionGen) { assertion =>
@@ -79,7 +81,7 @@ class AssertionCodecSpec extends BaseSpec with AssertionCodec with AssertionGene
       val bytes = Pickle.intoBytes(assertion)
       val roundtrip = Unpickle[Assertion].fromBytes(bytes)
 
-      assertion shouldBe assertion
+      roundtrip shouldBe assertion
     }
   }
 }

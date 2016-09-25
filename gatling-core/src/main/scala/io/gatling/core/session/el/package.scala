@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,14 @@
  */
 package io.gatling.core.session
 
-import io.gatling.core.NotNothing
-
 import scala.reflect.ClassTag
+
+import io.gatling.commons.NotNothing
+import io.gatling.commons.util.TypeCaster
 
 package object el {
 
   implicit class El(val string: String) extends AnyVal {
-    def el[T: ClassTag: NotNothing]: Expression[T] = ElCompiler.compile[T](string)
+    def el[T: TypeCaster: ClassTag: NotNothing]: Expression[T] = ElCompiler.compile[T](string)
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2011-2015 eBusiness Information, Groupe Excilys (www.ebusinessinformation.fr)
+ * Copyright 2011-2016 GatlingCorp (http://gatling.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -196,10 +196,17 @@ class HttpRequest {
 
     //#multivaluedFormParam
     http("Request with multivaluedFormParam")
-      .get("myUrl")
+      .post("myUrl")
       .multivaluedFormParam("multi1", "${foo}") // where foo is the name of a Seq Session attribute
       .multivaluedFormParam("multi2", session => List("foo", "bar"))
     //#multivaluedFormParam
+
+    //#form
+    http("Request with form")
+      .post("myUrl")
+      .form("${theForm}")
+      .formParam("fieldToOverride", "newValue")
+    //#form
 
     //#formUpload
     http("My Multipart Request")
@@ -253,7 +260,7 @@ class HttpRequest {
     // ignore when response isn't received (e.g. when connection refused)
     .transformResponse { case response if response.isReceived =>
       new ResponseWrapper(response) {
-        override val body = ByteArrayResponseBody(Base64.decode(response.body.string), UTF_8)
+        override val body = new ByteArrayResponseBody(Base64.decode(response.body.string), UTF_8)
       }
     }
     //#response-processors
